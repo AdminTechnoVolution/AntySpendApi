@@ -61,9 +61,37 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `OPENROUTER_API_KEY` | For AI | OpenRouter API key |
 | `OPENROUTER_MODEL` | No | Model id (default `google/gemini-2.5-flash-lite`) |
 | `EXCHANGE_RATE_API_TOKEN` | For FX | ExchangeRate-API v6 token |
+| `RATE_LIMIT_MAX` | No | Max requests per client per window (default `50`) |
+| `RATE_LIMIT_TTL_MS` | No | Rate limit window in ms (default `60000`) |
 | `PORT` | No | HTTP port (default `3000`) |
 
-## Architecture
+## Security
+
+### Rate limiting
+
+- **50 requests per minute** per client (configurable via `RATE_LIMIT_MAX` / `RATE_LIMIT_TTL_MS`).
+- Client identity: **`userId` from a valid JWT access token**, otherwise **client IP** (respects `trust proxy` for one hop behind a reverse proxy).
+- Returns **429 Too Many Requests** when exceeded.
+- Swagger/OpenAPI routes (`/docs`, `/docs-json`, `/openapi.json`) are excluded.
+- Storage is **in-memory** (single instance). Use Redis-backed throttling for multi-replica deployments.
+
+### NoSQL injection protection
+
+Defense in depth for MongoDB writes and queries:
+
+1. **HTTP middleware** — `mongo-sanitize` strips `$` operator keys and dotted keys from `body`, `query`, and `params` before validation.
+2. **Validation** — `ValidationPipe` whitelists DTO fields; sync payloads reject nested Mongo operators via `@RejectMongoOperators()`.
+3. **Service layer** — `sanitizeDocumentForStorage()` deep-strips dangerous keys before any `$set` in sync, CRUD, and settings updates.
+4. **Mongoose** — `strictQuery`, `sanitizeFilter`, and `strict: true` schemas at connection and schema level.
+5. **Route params** — CRUD `:id` params must match 32-char hex (`ParseEntityIdPipe`).
+
+### MongoDB Atlas recommendations
+
+- Use a **least-privilege** database user (read/write on the app database only).
+- Enable **IP allowlist** (or VPC peering) for production.
+- Store `MONGODB_URI` only in environment secrets; rotate credentials periodically.
+- Never log connection strings in production.
+
 
 Vertical slices per domain module:
 

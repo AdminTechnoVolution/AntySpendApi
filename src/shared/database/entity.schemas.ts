@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { SyncableEntity, syncableIndexes } from '../../shared/sync/syncable.schema';
 
-@Schema({ collection: 'user_settings' })
+@Schema({ collection: 'user_settings', strict: true })
 export class UserSettings extends SyncableEntity {
   @Prop({ required: true, default: 'USD' })
   primaryCurrencyCode!: string;
@@ -429,7 +429,7 @@ export const InvestmentMovementSchema =
   SchemaFactory.createForClass(InvestmentMovement);
 syncableIndexes(InvestmentMovementSchema);
 
-@Schema({ collection: 'currencies' })
+@Schema({ collection: 'currencies', strict: true })
 export class Currency {
   @Prop({ required: true, unique: true })
   code!: string;
@@ -450,7 +450,7 @@ export class Currency {
 export type CurrencyDocument = HydratedDocument<Currency>;
 export const CurrencySchema = SchemaFactory.createForClass(Currency);
 
-@Schema({ collection: 'exchange_rate_snapshots' })
+@Schema({ collection: 'exchange_rate_snapshots', strict: true })
 export class ExchangeRateSnapshot {
   @Prop({ required: true, default: 'USD' })
   baseCurrency!: string;

@@ -11,4 +11,6 @@ export type EnvConfig = {
     OPENROUTER_API_KEY: string;
     OPENROUTER_MODEL: string;
     EXCHANGE_RATE_API_TOKEN: string;
+    RATE_LIMIT_MAX: number;
+    RATE_LIMIT_TTL_MS: number;
 };

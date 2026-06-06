@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ParseEntityIdPipe } from '../../../shared/security/parse-entity-id.pipe';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
@@ -55,7 +56,7 @@ export class TransactionController {
 
   @Get(':id')
   @ApiCrudGet('transaction', TransactionDto)
-  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.findOne(user.userId, id);
   }
 
@@ -73,7 +74,7 @@ export class TransactionController {
   @ApiCrudUpdate('transaction', UpdateTransactionDto, TransactionDto)
   update(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseEntityIdPipe) id: string,
     @Body() body: Partial<Transaction>,
   ) {
     return this.service.update(user.userId, id, body);
@@ -81,7 +82,7 @@ export class TransactionController {
 
   @Delete(':id')
   @ApiCrudDelete('transaction', TransactionDto)
-  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.softDelete(user.userId, id);
   }
 }

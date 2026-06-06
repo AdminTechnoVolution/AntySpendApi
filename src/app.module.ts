@@ -17,10 +17,12 @@ import { CurrenciesModule } from './modules/currencies/currencies.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { AiModule } from './modules/ai/ai.module';
 import { SyncModule } from './modules/sync/sync.module';
+import { AppThrottlingModule } from './shared/throttling/throttling.module';
 
 @Module({
   imports: [
     AppConfigModule,
+    AppThrottlingModule,
     DatabaseModule,
     AuthModule,
     SettingsModule,

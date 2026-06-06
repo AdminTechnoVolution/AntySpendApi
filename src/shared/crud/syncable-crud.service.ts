@@ -5,6 +5,7 @@ import {
 import { Model } from 'mongoose';
 import { createHash, randomBytes } from 'crypto';
 import { decideLww } from '../sync/lww.service';
+import { sanitizeDocumentForStorage } from '../security/strip-mongo-keys';
 
 export function newEntityId(): string {
   return randomBytes(16).toString('hex');
@@ -59,13 +60,14 @@ export class SyncableCrudService {
         ? idFromIdempotencyKey(userId, options.idempotencyKey)
         : newEntityId());
     const now = Date.now();
+    const safeData = sanitizeDocumentForStorage(data);
 
     const doc = await this.model
       .findOneAndUpdate(
         { userId, id },
         {
           $setOnInsert: {
-            ...data,
+            ...safeData,
             id,
             userId,
             createdAtMillis: now,
@@ -113,6 +115,7 @@ export class SyncableCrudService {
 
     const now = Date.now();
     const { id: _ignoredId, userId: _ignoredUserId, ...fields } = data;
+    const safeFields = sanitizeDocumentForStorage(fields);
     const updatedAtMillis =
       clientUpdatedAtMillis ??
       (existing?.updatedAtMillis as number | undefined) ??
@@ -122,8 +125,8 @@ export class SyncableCrudService {
       .findOneAndUpdate(
         { userId, id },
         {
-          $set: {
-            ...fields,
+          $set: sanitizeDocumentForStorage({
+            ...safeFields,
             id,
             userId,
             updatedAtMillis,
@@ -131,7 +134,7 @@ export class SyncableCrudService {
               options.deviceId ??
               (data.deviceId as string | undefined) ??
               (existing?.deviceId as string | undefined),
-          },
+          }),
           $setOnInsert: {
             createdAtMillis:
               (existing?.createdAtMillis as number | undefined) ?? now,

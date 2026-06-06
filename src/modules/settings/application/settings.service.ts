@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { GoogleProfile } from '../../../shared/auth/google-token.verifier';
+import { sanitizeDocumentForStorage } from '../../../shared/security/strip-mongo-keys';
 import { newEntityId } from '../../../shared/crud/syncable-crud.service';
 import {
   UserSettings,
@@ -61,11 +62,14 @@ export class SettingsService {
 
   async update(userId: string, data: Partial<UserSettings>) {
     const now = Date.now();
+    const safeData = sanitizeDocumentForStorage(
+      data as Record<string, unknown>,
+    );
     const updated = await this.settingsModel
       .findOneAndUpdate(
         { userId },
         {
-          $set: { ...data, updatedAtMillis: now },
+          $set: { ...safeData, updatedAtMillis: now },
           $setOnInsert: {
             id: newEntityId(),
             userId,

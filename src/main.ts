@@ -3,10 +3,15 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
+import { mongoSanitizeMiddleware } from './shared/security/mongo-sanitize.middleware';
 import { BEARER_AUTH_SCHEME } from './shared/swagger/swagger.constants';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+  app.use(mongoSanitizeMiddleware);
 
   app.useGlobalPipes(
     new ValidationPipe({

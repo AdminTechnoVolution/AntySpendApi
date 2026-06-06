@@ -5,9 +5,13 @@ const core_1 = require("@nestjs/core");
 const swagger_1 = require("@nestjs/swagger");
 const app_module_1 = require("./app.module");
 const all_exceptions_filter_1 = require("./shared/filters/all-exceptions.filter");
+const mongo_sanitize_middleware_1 = require("./shared/security/mongo-sanitize.middleware");
 const swagger_constants_1 = require("./shared/swagger/swagger.constants");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.set('trust proxy', 1);
+    app.use(mongo_sanitize_middleware_1.mongoSanitizeMiddleware);
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         transform: true,

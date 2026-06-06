@@ -14,6 +14,7 @@ exports.newEntityId = newEntityId;
 const common_1 = require("@nestjs/common");
 const crypto_1 = require("crypto");
 const lww_service_1 = require("../sync/lww.service");
+const strip_mongo_keys_1 = require("../security/strip-mongo-keys");
 function newEntityId() {
     return (0, crypto_1.randomBytes)(16).toString('hex');
 }
@@ -50,10 +51,11 @@ let SyncableCrudService = class SyncableCrudService {
                 ? idFromIdempotencyKey(userId, options.idempotencyKey)
                 : newEntityId());
         const now = Date.now();
+        const safeData = (0, strip_mongo_keys_1.sanitizeDocumentForStorage)(data);
         const doc = await this.model
             .findOneAndUpdate({ userId, id }, {
             $setOnInsert: {
-                ...data,
+                ...safeData,
                 id,
                 userId,
                 createdAtMillis: now,
@@ -84,20 +86,21 @@ let SyncableCrudService = class SyncableCrudService {
         }
         const now = Date.now();
         const { id: _ignoredId, userId: _ignoredUserId, ...fields } = data;
+        const safeFields = (0, strip_mongo_keys_1.sanitizeDocumentForStorage)(fields);
         const updatedAtMillis = clientUpdatedAtMillis ??
             existing?.updatedAtMillis ??
             now;
         const doc = await this.model
             .findOneAndUpdate({ userId, id }, {
-            $set: {
-                ...fields,
+            $set: (0, strip_mongo_keys_1.sanitizeDocumentForStorage)({
+                ...safeFields,
                 id,
                 userId,
                 updatedAtMillis,
                 deviceId: options.deviceId ??
                     data.deviceId ??
                     existing?.deviceId,
-            },
+            }),
             $setOnInsert: {
                 createdAtMillis: existing?.createdAtMillis ?? now,
             },

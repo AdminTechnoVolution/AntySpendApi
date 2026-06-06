@@ -18,5 +18,9 @@ exports.default = () => ({
     exchangeRate: {
         apiToken: process.env.EXCHANGE_RATE_API_TOKEN ?? '',
     },
+    rateLimit: {
+        max: parseInt(process.env.RATE_LIMIT_MAX ?? '50', 10),
+        ttlMs: parseInt(process.env.RATE_LIMIT_TTL_MS ?? '60000', 10),
+    },
 });
 //# sourceMappingURL=configuration.js.map

@@ -16,5 +16,9 @@ declare const _default: () => {
     exchangeRate: {
         apiToken: string;
     };
+    rateLimit: {
+        max: number;
+        ttlMs: number;
+    };
 };
 export default _default;

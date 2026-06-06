@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ParseEntityIdPipe } from '../../../shared/security/parse-entity-id.pipe';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
@@ -35,7 +36,7 @@ export class SavingsPlanController {
 
   @Get(':id')
   @ApiCrudGet('savings plan', SavingsPlanDto)
-  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.findOne(user.userId, id);
   }
 
@@ -53,7 +54,7 @@ export class SavingsPlanController {
   @ApiCrudUpdate('savings plan', UpdateSavingsPlanDto, SavingsPlanDto)
   update(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseEntityIdPipe) id: string,
     @Body() body: Partial<SavingsPlan>,
   ) {
     return this.service.update(user.userId, id, body);
@@ -61,7 +62,7 @@ export class SavingsPlanController {
 
   @Delete(':id')
   @ApiCrudDelete('savings plan', SavingsPlanDto)
-  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.softDelete(user.userId, id);
   }
 }

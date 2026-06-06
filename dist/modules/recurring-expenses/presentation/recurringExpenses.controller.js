@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RecurringExpenseController = void 0;
 const common_1 = require("@nestjs/common");
+const parse_entity_id_pipe_1 = require("../../../shared/security/parse-entity-id.pipe");
 const swagger_1 = require("@nestjs/swagger");
 const jwt_auth_guard_1 = require("../../../shared/auth/jwt-auth.guard");
 const current_user_decorator_1 = require("../../../shared/auth/current-user.decorator");
@@ -60,7 +61,7 @@ __decorate([
     (0, common_1.Get)(':id'),
     (0, crud_swagger_decorator_1.ApiCrudGet)('recurring expense', entity_dto_1.RecurringExpenseDto),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
@@ -79,7 +80,7 @@ __decorate([
     (0, common_1.Patch)(':id'),
     (0, crud_swagger_decorator_1.ApiCrudUpdate)('recurring expense', entity_dto_1.UpdateRecurringExpenseDto, entity_dto_1.RecurringExpenseDto),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, Object]),
@@ -92,7 +93,7 @@ __decorate([
     (0, swagger_1.ApiOkResponse)({ type: entity_dto_1.RecurringExpenseDto }),
     (0, common_responses_decorator_1.ApiStandardCrudResponses)(),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
@@ -101,7 +102,7 @@ __decorate([
     (0, common_1.Delete)(':id'),
     (0, crud_swagger_decorator_1.ApiCrudDelete)('recurring expense', entity_dto_1.RecurringExpenseDto),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)

@@ -96,7 +96,7 @@ __decorate([
     __metadata("design:type", Boolean)
 ], UserSettings.prototype, "displayNameUserEdited", void 0);
 exports.UserSettings = UserSettings = __decorate([
-    (0, mongoose_1.Schema)({ collection: 'user_settings' })
+    (0, mongoose_1.Schema)({ collection: 'user_settings', strict: true })
 ], UserSettings);
 exports.UserSettingsSchema = mongoose_1.SchemaFactory.createForClass(UserSettings);
 (0, syncable_schema_1.syncableIndexes)(exports.UserSettingsSchema);
@@ -706,7 +706,7 @@ __decorate([
     __metadata("design:type", Number)
 ], Currency.prototype, "updatedAtMillis", void 0);
 exports.Currency = Currency = __decorate([
-    (0, mongoose_1.Schema)({ collection: 'currencies' })
+    (0, mongoose_1.Schema)({ collection: 'currencies', strict: true })
 ], Currency);
 exports.CurrencySchema = mongoose_1.SchemaFactory.createForClass(Currency);
 let ExchangeRateSnapshot = class ExchangeRateSnapshot {
@@ -738,7 +738,7 @@ __decorate([
     __metadata("design:type", Number)
 ], ExchangeRateSnapshot.prototype, "expiresAtMillis", void 0);
 exports.ExchangeRateSnapshot = ExchangeRateSnapshot = __decorate([
-    (0, mongoose_1.Schema)({ collection: 'exchange_rate_snapshots' })
+    (0, mongoose_1.Schema)({ collection: 'exchange_rate_snapshots', strict: true })
 ], ExchangeRateSnapshot);
 exports.ExchangeRateSnapshotSchema = mongoose_1.SchemaFactory.createForClass(ExchangeRateSnapshot);
 exports.ExchangeRateSnapshotSchema.index({ baseCurrency: 1, snapshotDate: 1 }, { unique: true });

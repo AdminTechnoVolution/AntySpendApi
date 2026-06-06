@@ -26,6 +26,7 @@ const currencies_module_1 = require("./modules/currencies/currencies.module");
 const exchange_rates_module_1 = require("./modules/exchange-rates/exchange-rates.module");
 const ai_module_1 = require("./modules/ai/ai.module");
 const sync_module_1 = require("./modules/sync/sync.module");
+const throttling_module_1 = require("./shared/throttling/throttling.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -33,6 +34,7 @@ exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
             config_module_1.AppConfigModule,
+            throttling_module_1.AppThrottlingModule,
             database_module_1.DatabaseModule,
             auth_module_1.AuthModule,
             settings_module_1.SettingsModule,

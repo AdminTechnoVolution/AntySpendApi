@@ -16,6 +16,7 @@ exports.SettingsService = void 0;
 const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
+const strip_mongo_keys_1 = require("../../../shared/security/strip-mongo-keys");
 const syncable_crud_service_1 = require("../../../shared/crud/syncable-crud.service");
 const entity_schemas_1 = require("../../../shared/database/entity.schemas");
 let SettingsService = class SettingsService {
@@ -60,9 +61,10 @@ let SettingsService = class SettingsService {
     }
     async update(userId, data) {
         const now = Date.now();
+        const safeData = (0, strip_mongo_keys_1.sanitizeDocumentForStorage)(data);
         const updated = await this.settingsModel
             .findOneAndUpdate({ userId }, {
-            $set: { ...data, updatedAtMillis: now },
+            $set: { ...safeData, updatedAtMillis: now },
             $setOnInsert: {
                 id: (0, syncable_crud_service_1.newEntityId)(),
                 userId,

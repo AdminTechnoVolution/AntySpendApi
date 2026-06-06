@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ParseEntityIdPipe } from '../../../shared/security/parse-entity-id.pipe';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -51,7 +52,7 @@ export class RecurringExpenseController {
 
   @Get(':id')
   @ApiCrudGet('recurring expense', RecurringExpenseDto)
-  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.findOne(user.userId, id);
   }
 
@@ -69,7 +70,7 @@ export class RecurringExpenseController {
   @ApiCrudUpdate('recurring expense', UpdateRecurringExpenseDto, RecurringExpenseDto)
   update(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', ParseEntityIdPipe) id: string,
     @Body() body: Partial<RecurringExpense>,
   ) {
     return this.service.update(user.userId, id, body);
@@ -80,13 +81,13 @@ export class RecurringExpenseController {
   @ApiParam({ name: 'id', description: 'Recurring expense id' })
   @ApiOkResponse({ type: RecurringExpenseDto })
   @ApiStandardCrudResponses()
-  markPaid(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  markPaid(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.markPaid(user.userId, id);
   }
 
   @Delete(':id')
   @ApiCrudDelete('recurring expense', RecurringExpenseDto)
-  remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+  remove(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseEntityIdPipe) id: string) {
     return this.service.softDelete(user.userId, id);
   }
 }

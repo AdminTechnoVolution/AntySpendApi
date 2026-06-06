@@ -16,7 +16,7 @@ export function syncableIndexes(schema: MongooseSchema) {
   schema.index({ userId: 1, updatedAtMillis: 1 });
 }
 
-@Schema()
+@Schema({ strict: true })
 export class SyncableEntity implements ISyncableEntity {
   @Prop({ required: true })
   id!: string;

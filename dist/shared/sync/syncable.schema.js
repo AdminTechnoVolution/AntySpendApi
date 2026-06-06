@@ -56,7 +56,7 @@ __decorate([
     __metadata("design:type", String)
 ], SyncableEntity.prototype, "deviceId", void 0);
 exports.SyncableEntity = SyncableEntity = __decorate([
-    (0, mongoose_1.Schema)()
+    (0, mongoose_1.Schema)({ strict: true })
 ], SyncableEntity);
 function toPlainSyncable(doc) {
     const { _id, __v, ...rest } = doc;

@@ -1,38 +1,68 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsIn,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  IsString,
+  Matches,
+  ValidateNested,
+} from 'class-validator';
+import { RejectMongoOperators } from '../security/reject-mongo-operators.decorator';
 import { SYNC_ENTITY_TYPES } from '../sync/sync.types';
 
 export class SyncChangeDto {
   @ApiProperty({ enum: SYNC_ENTITY_TYPES })
+  @IsIn(SYNC_ENTITY_TYPES)
   entityType!: (typeof SYNC_ENTITY_TYPES)[number];
 
-  @ApiProperty()
+  @ApiProperty({ description: '32-char hex entity id' })
+  @IsString()
+  @Matches(/^[a-f0-9]{32}$/)
   entityId!: string;
 
   @ApiProperty()
+  @IsNumber()
   updatedAtMillis!: number;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   deletedAtMillis?: number;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
   clientUpdatedAtMillis?: number;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   deviceId?: string;
 
   @ApiProperty({ type: 'object', additionalProperties: true })
+  @IsObject()
+  @RejectMongoOperators()
   payload!: Record<string, unknown>;
 }
 
 export class SyncPushRequestDto {
   @ApiProperty({ type: [SyncChangeDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SyncChangeDto)
   changes!: SyncChangeDto[];
 
   @ApiPropertyOptional({ description: 'Last serverVersion from a previous pull/push' })
+  @IsOptional()
+  @IsString()
   lastKnownServerVersion?: string;
 
   @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   deviceId?: string;
 }
 

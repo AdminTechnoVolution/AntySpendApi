@@ -10,6 +10,7 @@ import {
   SyncPushRequest,
   SyncPushResult,
 } from '../../../shared/sync/sync.types';
+import { sanitizeDocumentForStorage } from '../../../shared/security/strip-mongo-keys';
 import {
   Budget,
   BudgetDocument,
@@ -119,7 +120,7 @@ export class SyncService {
 
         const now = Date.now();
         const deviceId = change.deviceId ?? request.deviceId;
-        const entityPayload = { ...change.payload };
+        const entityPayload = sanitizeDocumentForStorage({ ...change.payload });
         delete entityPayload.createdAtMillis;
         delete entityPayload.id;
         delete entityPayload.userId;
@@ -128,7 +129,7 @@ export class SyncService {
         delete entityPayload.clientUpdatedAtMillis;
         delete entityPayload.deviceId;
 
-        const payload: Record<string, unknown> = {
+        const payload = sanitizeDocumentForStorage({
           ...entityPayload,
           id:
             change.entityType === 'settings'
@@ -137,13 +138,13 @@ export class SyncService {
           userId,
           updatedAtMillis: change.updatedAtMillis,
           deviceId,
-        };
-        if (change.deletedAtMillis !== undefined) {
-          payload.deletedAtMillis = change.deletedAtMillis;
-        }
-        if (change.clientUpdatedAtMillis !== undefined) {
-          payload.clientUpdatedAtMillis = change.clientUpdatedAtMillis;
-        }
+          ...(change.deletedAtMillis !== undefined
+            ? { deletedAtMillis: change.deletedAtMillis }
+            : {}),
+          ...(change.clientUpdatedAtMillis !== undefined
+            ? { clientUpdatedAtMillis: change.clientUpdatedAtMillis }
+            : {}),
+        });
 
         const createdAtMillis =
           (existing?.createdAtMillis as number | undefined) ??

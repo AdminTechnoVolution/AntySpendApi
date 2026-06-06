@@ -40,7 +40,11 @@ exports.envValidationSchema = Joi.object({
         .valid('development', 'production', 'test')
         .default('development'),
     PORT: Joi.number().default(3000),
-    MONGODB_URI: Joi.string().required(),
+    MONGODB_URI: Joi.string()
+        .pattern(/^mongodb(\+srv)?:\/\//)
+        .required(),
+    RATE_LIMIT_MAX: Joi.number().default(50),
+    RATE_LIMIT_TTL_MS: Joi.number().default(60000),
     JWT_SECRET: Joi.string().min(16).required(),
     JWT_ACCESS_EXPIRES: Joi.string().default('15m'),
     JWT_REFRESH_EXPIRES: Joi.string().default('7d'),

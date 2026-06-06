@@ -9,7 +9,6 @@ import {
 import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
-import type { SyncPushRequest } from '../../../shared/sync/sync.types';
 import {
   SyncPullQueryDto,
   SyncPullResponseDto,
@@ -34,7 +33,7 @@ export class SyncController {
   @ApiStandardAuthResponses()
   push(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: SyncPushRequest,
+    @Body() body: SyncPushRequestDto,
   ) {
     return this.syncService.push(user.userId, body);
   }

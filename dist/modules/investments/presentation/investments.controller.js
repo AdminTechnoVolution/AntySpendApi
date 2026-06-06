@@ -14,6 +14,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InvestmentController = void 0;
 const common_1 = require("@nestjs/common");
+const parse_entity_id_pipe_1 = require("../../../shared/security/parse-entity-id.pipe");
 const swagger_1 = require("@nestjs/swagger");
 const jwt_auth_guard_1 = require("../../../shared/auth/jwt-auth.guard");
 const current_user_decorator_1 = require("../../../shared/auth/current-user.decorator");
@@ -56,7 +57,7 @@ __decorate([
     (0, common_1.Get)(':id'),
     (0, crud_swagger_decorator_1.ApiCrudGet)('investment', entity_dto_1.InvestmentDto),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
@@ -75,7 +76,7 @@ __decorate([
     (0, common_1.Patch)(':id'),
     (0, crud_swagger_decorator_1.ApiCrudUpdate)('investment', entity_dto_1.UpdateInvestmentDto, entity_dto_1.InvestmentDto),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String, Object]),
@@ -85,7 +86,7 @@ __decorate([
     (0, common_1.Delete)(':id'),
     (0, crud_swagger_decorator_1.ApiCrudDelete)('investment', entity_dto_1.InvestmentDto),
     __param(0, (0, current_user_decorator_1.CurrentUser)()),
-    __param(1, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('id', parse_entity_id_pipe_1.ParseEntityIdPipe)),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)

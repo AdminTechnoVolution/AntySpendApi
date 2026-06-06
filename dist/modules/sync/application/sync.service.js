@@ -19,6 +19,7 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const lww_service_1 = require("../../../shared/sync/lww.service");
 const sync_types_1 = require("../../../shared/sync/sync.types");
+const strip_mongo_keys_1 = require("../../../shared/security/strip-mongo-keys");
 const entity_schemas_1 = require("../../../shared/database/entity.schemas");
 let SyncService = SyncService_1 = class SyncService {
     lwwService;
@@ -70,7 +71,7 @@ let SyncService = SyncService_1 = class SyncService {
                 }
                 const now = Date.now();
                 const deviceId = change.deviceId ?? request.deviceId;
-                const entityPayload = { ...change.payload };
+                const entityPayload = (0, strip_mongo_keys_1.sanitizeDocumentForStorage)({ ...change.payload });
                 delete entityPayload.createdAtMillis;
                 delete entityPayload.id;
                 delete entityPayload.userId;
@@ -78,7 +79,7 @@ let SyncService = SyncService_1 = class SyncService {
                 delete entityPayload.deletedAtMillis;
                 delete entityPayload.clientUpdatedAtMillis;
                 delete entityPayload.deviceId;
-                const payload = {
+                const payload = (0, strip_mongo_keys_1.sanitizeDocumentForStorage)({
                     ...entityPayload,
                     id: change.entityType === 'settings'
                         ? (existing?.id ?? change.entityId)
@@ -86,13 +87,13 @@ let SyncService = SyncService_1 = class SyncService {
                     userId,
                     updatedAtMillis: change.updatedAtMillis,
                     deviceId,
-                };
-                if (change.deletedAtMillis !== undefined) {
-                    payload.deletedAtMillis = change.deletedAtMillis;
-                }
-                if (change.clientUpdatedAtMillis !== undefined) {
-                    payload.clientUpdatedAtMillis = change.clientUpdatedAtMillis;
-                }
+                    ...(change.deletedAtMillis !== undefined
+                        ? { deletedAtMillis: change.deletedAtMillis }
+                        : {}),
+                    ...(change.clientUpdatedAtMillis !== undefined
+                        ? { clientUpdatedAtMillis: change.clientUpdatedAtMillis }
+                        : {}),
+                });
                 const createdAtMillis = existing?.createdAtMillis ??
                     change.payload.createdAtMillis ??
                     now;
