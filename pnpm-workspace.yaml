@@ -1,0 +1,5 @@
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': true
+  mongodb-memory-server: true
+  unrs-resolver: true
