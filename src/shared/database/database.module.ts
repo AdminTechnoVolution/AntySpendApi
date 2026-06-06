@@ -4,7 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import mongoose from 'mongoose';
 
 mongoose.set('strictQuery', true);
-mongoose.set('sanitizeFilter', true);
+// Do not enable global sanitizeFilter: it breaks legitimate server-side
+// query operators ($gt, $gte, $exists, etc.). User input is sanitized via
+// middleware, DTO validation, and stripMongoKeys before writes.
 
 @Module({
   imports: [

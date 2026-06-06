@@ -20,5 +20,6 @@ declare const _default: () => {
         max: number;
         ttlMs: number;
     };
+    enableSwagger: boolean;
 };
 export default _default;

@@ -9,7 +9,7 @@ NestJS backend for the [AntySpend](https://github.com/technovolution/AntySpend) 
 - JWT + Google idToken verification
 - OpenRouter (server-side only)
 - ExchangeRate-API proxy with Mongo cache
-- Swagger UI at `/docs`, OpenAPI JSON at `/docs-json` and `/openapi.json`
+- Swagger UI at `/docs`, OpenAPI JSON at `/docs-json` and `/openapi.json` (when `ENABLE_SWAGGER=true`)
 
 ## Prerequisites
 
@@ -32,17 +32,19 @@ npm run start:dev
 
 API runs at `http://localhost:3000`.
 
+Set `ENABLE_SWAGGER=true` in `.env` to expose Swagger (off by default).
+
 | Resource | URL |
 |---|---|
-| Swagger UI | `http://localhost:3000/docs` |
-| OpenAPI JSON | `http://localhost:3000/docs-json` or `http://localhost:3000/openapi.json` |
+| Swagger UI | `http://localhost:3000/docs` (requires `ENABLE_SWAGGER=true`) |
+| OpenAPI JSON | `http://localhost:3000/docs-json` or `http://localhost:3000/openapi.json` (requires `ENABLE_SWAGGER=true`) |
 
 Use **Authorize** in Swagger UI with `Bearer <accessToken>` from `POST /auth/google`.
 
 ### Export OpenAPI spec
 
 ```bash
-# With the dev server running:
+# With the dev server running and ENABLE_SWAGGER=true:
 curl -s http://localhost:3000/openapi.json -o openapi.json
 
 # Or from docs-json:
@@ -63,6 +65,7 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `EXCHANGE_RATE_API_TOKEN` | For FX | ExchangeRate-API v6 token |
 | `RATE_LIMIT_MAX` | No | Max requests per client per window (default `50`) |
 | `RATE_LIMIT_TTL_MS` | No | Rate limit window in ms (default `60000`) |
+| `ENABLE_SWAGGER` | No | Expose `/docs` and OpenAPI JSON (default `false`) |
 | `PORT` | No | HTTP port (default `3000`) |
 
 ## Security
@@ -72,17 +75,18 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 - **50 requests per minute** per client (configurable via `RATE_LIMIT_MAX` / `RATE_LIMIT_TTL_MS`).
 - Client identity: **`userId` from a valid JWT access token**, otherwise **client IP** (respects `trust proxy` for one hop behind a reverse proxy).
 - Returns **429 Too Many Requests** when exceeded.
-- Swagger/OpenAPI routes (`/docs`, `/docs-json`, `/openapi.json`) are excluded.
+- Swagger/OpenAPI routes (`/docs`, `/docs-json`, `/openapi.json`) are excluded when enabled via `ENABLE_SWAGGER=true`.
+- Leave **`ENABLE_SWAGGER=false`** in production unless you explicitly need public API docs.
 - Storage is **in-memory** (single instance). Use Redis-backed throttling for multi-replica deployments.
 
 ### NoSQL injection protection
 
 Defense in depth for MongoDB writes and queries:
 
-1. **HTTP middleware** — `mongo-sanitize` strips `$` operator keys and dotted keys from `body`, `query`, and `params` before validation.
+1. **HTTP middleware** — strips `$` operator keys and dotted keys from JSON **request bodies** before validation (Express 5 `req.query` is read-only; query/route params use DTOs and `ParseEntityIdPipe`).
 2. **Validation** — `ValidationPipe` whitelists DTO fields; sync payloads reject nested Mongo operators via `@RejectMongoOperators()`.
 3. **Service layer** — `sanitizeDocumentForStorage()` deep-strips dangerous keys before any `$set` in sync, CRUD, and settings updates.
-4. **Mongoose** — `strictQuery`, `sanitizeFilter`, and `strict: true` schemas at connection and schema level.
+4. **Mongoose** — `strictQuery` and `strict: true` schemas at connection and schema level.
 5. **Route params** — CRUD `:id` params must match 32-char hex (`ParseEntityIdPipe`).
 
 ### MongoDB Atlas recommendations

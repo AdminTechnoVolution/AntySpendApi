@@ -98,7 +98,6 @@ export class AuthService {
       {
         tokenHash: hash,
         revoked: false,
-        expiresAt: { $gt: new Date() },
       },
       { $set: { revoked: true } },
       { returnDocument: 'before' },
@@ -129,6 +128,10 @@ export class AuthService {
           },
         };
       }
+      throw new UnauthorizedException('Refresh token expired or revoked');
+    }
+
+    if (stored.expiresAt <= new Date()) {
       throw new UnauthorizedException('Refresh token expired or revoked');
     }
 

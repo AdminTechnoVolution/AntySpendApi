@@ -1,6 +1,12 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import {
+  InjectThrottlerOptions,
+  InjectThrottlerStorage,
+  ThrottlerGuard,
+} from '@nestjs/throttler';
+import type { ThrottlerModuleOptions, ThrottlerStorage } from '@nestjs/throttler';
 import type { Request } from 'express';
 import type { AntyJwtPayload } from '../auth/jwt-payload.interface';
 import { resolveClientIp } from './resolve-client-ip';
@@ -8,9 +14,9 @@ import { resolveClientIp } from './resolve-client-ip';
 @Injectable()
 export class ClientThrottlerGuard extends ThrottlerGuard {
   constructor(
-    options: ConstructorParameters<typeof ThrottlerGuard>[0],
-    storageService: ConstructorParameters<typeof ThrottlerGuard>[1],
-    reflector: ConstructorParameters<typeof ThrottlerGuard>[2],
+    @InjectThrottlerOptions() options: ThrottlerModuleOptions,
+    @InjectThrottlerStorage() storageService: ThrottlerStorage,
+    reflector: Reflector,
     private readonly jwtService: JwtService,
   ) {
     super(options, storageService, reflector);

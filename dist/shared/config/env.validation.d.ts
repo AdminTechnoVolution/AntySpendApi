@@ -13,4 +13,5 @@ export type EnvConfig = {
     EXCHANGE_RATE_API_TOKEN: string;
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_TTL_MS: number;
+    ENABLE_SWAGGER: boolean;
 };

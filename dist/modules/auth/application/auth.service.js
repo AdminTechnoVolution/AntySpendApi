@@ -91,7 +91,6 @@ let AuthService = class AuthService {
         const stored = await this.refreshTokenModel.findOneAndUpdate({
             tokenHash: hash,
             revoked: false,
-            expiresAt: { $gt: new Date() },
         }, { $set: { revoked: true } }, { returnDocument: 'before' });
         if (!stored) {
             const revoked = await this.refreshTokenModel.findOne({
@@ -116,6 +115,9 @@ let AuthService = class AuthService {
                     },
                 };
             }
+            throw new common_1.UnauthorizedException('Refresh token expired or revoked');
+        }
+        if (stored.expiresAt <= new Date()) {
             throw new common_1.UnauthorizedException('Refresh token expired or revoked');
         }
         const user = await this.userModel.findById(payload.sub);

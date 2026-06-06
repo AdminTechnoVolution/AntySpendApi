@@ -32,6 +32,26 @@ export function sanitizeDocumentForStorage(
   return result;
 }
 
+/** Mutates a record in place (for read-only refs such as req.query in Express 5). */
+export function sanitizeRecordInPlace(record: Record<string, unknown>): void {
+  for (const key of Object.keys(record)) {
+    if (hasDangerousKey(key)) {
+      delete record[key];
+      continue;
+    }
+    const value = record[key];
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (isPlainObject(item)) {
+          sanitizeRecordInPlace(item);
+        }
+      }
+    } else if (isPlainObject(value)) {
+      sanitizeRecordInPlace(value);
+    }
+  }
+}
+
 export function containsMongoOperatorKeys(value: unknown): boolean {
   if (Array.isArray(value)) {
     return value.some(containsMongoOperatorKeys);

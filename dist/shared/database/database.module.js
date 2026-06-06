@@ -15,7 +15,6 @@ const mongoose_1 = require("@nestjs/mongoose");
 const config_1 = require("@nestjs/config");
 const mongoose_2 = __importDefault(require("mongoose"));
 mongoose_2.default.set('strictQuery', true);
-mongoose_2.default.set('sanitizeFilter', true);
 let DatabaseModule = class DatabaseModule {
 };
 exports.DatabaseModule = DatabaseModule;

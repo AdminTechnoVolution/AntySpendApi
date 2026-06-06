@@ -52,5 +52,9 @@ exports.envValidationSchema = Joi.object({
     OPENROUTER_API_KEY: Joi.string().allow('').default(''),
     OPENROUTER_MODEL: Joi.string().default('google/gemini-2.5-flash-lite'),
     EXCHANGE_RATE_API_TOKEN: Joi.string().allow('').default(''),
+    ENABLE_SWAGGER: Joi.boolean()
+        .truthy('true', '1')
+        .falsy('false', '0')
+        .default(false),
 });
 //# sourceMappingURL=env.validation.js.map

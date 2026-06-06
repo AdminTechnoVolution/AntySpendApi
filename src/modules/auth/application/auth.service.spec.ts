@@ -178,4 +178,20 @@ describe('AuthService profile', () => {
       );
     });
   });
+
+  describe('refresh', () => {
+    it('rejects expired refresh token after revoke attempt', async () => {
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: userId,
+        type: 'refresh',
+      });
+      refreshTokenModel.findOneAndUpdate.mockResolvedValue({
+        expiresAt: new Date(Date.now() - 60_000),
+      });
+
+      await expect(service.refresh('refresh-jwt')).rejects.toThrow(
+        'Refresh token expired or revoked',
+      );
+    });
+  });
 });

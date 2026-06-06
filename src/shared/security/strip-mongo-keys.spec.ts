@@ -1,4 +1,7 @@
-import { sanitizeDocumentForStorage } from './strip-mongo-keys';
+import {
+  sanitizeDocumentForStorage,
+  sanitizeRecordInPlace,
+} from './strip-mongo-keys';
 
 describe('sanitizeDocumentForStorage', () => {
   it('removes top-level Mongo operator keys', () => {
@@ -29,5 +32,19 @@ describe('sanitizeDocumentForStorage', () => {
     expect(
       sanitizeDocumentForStorage({ tags: ['a', 'b'], $set: {} }),
     ).toEqual({ tags: ['a', 'b'] });
+  });
+});
+
+describe('sanitizeRecordInPlace', () => {
+  it('mutates the same object without reassignment', () => {
+    const query = { since: 'v1', '$gt': '' };
+    sanitizeRecordInPlace(query);
+    expect(query).toEqual({ since: 'v1' });
+  });
+
+  it('strips nested operator keys in place', () => {
+    const query = { filter: { $where: '1', ok: true } };
+    sanitizeRecordInPlace(query);
+    expect(query).toEqual({ filter: { ok: true } });
   });
 });

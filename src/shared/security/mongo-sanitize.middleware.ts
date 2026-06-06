@@ -1,27 +1,24 @@
 import type { NextFunction, Request, Response } from 'express';
-import sanitize from 'mongo-sanitize';
+import { sanitizeDocumentForStorage } from './strip-mongo-keys';
 
-function sanitizeInPlace<T>(value: T): T {
-  if (value === null || value === undefined) {
-    return value;
-  }
-  return sanitize(value) as T;
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Removes MongoDB operator keys from HTTP input before validation and handlers. */
+/**
+ * Strips Mongo operator keys from JSON request bodies before validation.
+ *
+ * Skips req.query and req.params: Express 5 exposes them as getter-only on
+ * IncomingMessage (assigning or mutating can throw). Query/route inputs are
+ * validated via DTOs and ParseEntityIdPipe instead.
+ */
 export function mongoSanitizeMiddleware(
   req: Request,
   _res: Response,
   next: NextFunction,
 ): void {
-  if (req.body !== undefined) {
-    req.body = sanitizeInPlace(req.body);
-  }
-  if (req.query !== undefined) {
-    req.query = sanitizeInPlace(req.query);
-  }
-  if (req.params !== undefined) {
-    req.params = sanitizeInPlace(req.params);
+  if (isPlainObject(req.body)) {
+    req.body = sanitizeDocumentForStorage(req.body);
   }
   next();
 }
