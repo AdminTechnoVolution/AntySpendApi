@@ -18,12 +18,15 @@ const swagger_1 = require("@nestjs/swagger");
 const jwt_auth_guard_1 = require("../../../shared/auth/jwt-auth.guard");
 const current_user_decorator_1 = require("../../../shared/auth/current-user.decorator");
 const swagger_constants_1 = require("../../../shared/swagger/swagger.constants");
+const account_deletion_service_1 = require("../application/account-deletion.service");
 const auth_service_1 = require("../application/auth.service");
 const auth_dto_1 = require("../dto/auth.dto");
 let AuthController = class AuthController {
     authService;
-    constructor(authService) {
+    accountDeletionService;
+    constructor(authService, accountDeletionService) {
         this.authService = authService;
+        this.accountDeletionService = accountDeletionService;
     }
     async google(dto) {
         return this.authService.loginWithGoogle(dto.idToken);
@@ -39,6 +42,9 @@ let AuthController = class AuthController {
     }
     async updateProfile(user, dto) {
         return this.authService.updateProfile(user.userId, dto.name);
+    }
+    async deleteAccount(user) {
+        return this.accountDeletionService.deleteUserAccount(user.userId);
     }
 };
 exports.AuthController = AuthController;
@@ -96,9 +102,25 @@ __decorate([
     __metadata("design:paramtypes", [Object, auth_dto_1.UpdateProfileDto]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "updateProfile", null);
+__decorate([
+    (0, common_1.Delete)('account'),
+    (0, common_1.HttpCode)(200),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
+    (0, swagger_1.ApiBearerAuth)(swagger_constants_1.BEARER_AUTH_SCHEME),
+    (0, swagger_1.ApiOperation)({
+        summary: 'Permanently delete authenticated user account and all cloud data',
+    }),
+    (0, swagger_1.ApiOkResponse)({ type: auth_dto_1.DeleteAccountResponseDto }),
+    (0, swagger_1.ApiUnauthorizedResponse)({ description: 'Missing or invalid JWT' }),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "deleteAccount", null);
 exports.AuthController = AuthController = __decorate([
     (0, swagger_1.ApiTags)('auth'),
     (0, common_1.Controller)('auth'),
-    __metadata("design:paramtypes", [auth_service_1.AuthService])
+    __metadata("design:paramtypes", [auth_service_1.AuthService,
+        account_deletion_service_1.AccountDeletionService])
 ], AuthController);
 //# sourceMappingURL=auth.controller.js.map

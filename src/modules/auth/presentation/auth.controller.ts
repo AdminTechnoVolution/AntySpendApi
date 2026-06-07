@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Patch,
@@ -18,10 +19,12 @@ import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
 import { BEARER_AUTH_SCHEME } from '../../../shared/swagger/swagger.constants';
+import { AccountDeletionService } from '../application/account-deletion.service';
 import { AuthService } from '../application/auth.service';
 import {
   AuthTokensResponseDto,
   AuthUserDto,
+  DeleteAccountResponseDto,
   GoogleAuthDto,
   LogoutResponseDto,
   RefreshTokenDto,
@@ -31,7 +34,10 @@ import {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly accountDeletionService: AccountDeletionService,
+  ) {}
 
   @Post('google')
   @ApiOperation({ summary: 'Login or register with Google idToken' })
@@ -77,5 +83,20 @@ export class AuthController {
     @Body() dto: UpdateProfileDto,
   ): Promise<AuthUserDto> {
     return this.authService.updateProfile(user.userId, dto.name);
+  }
+
+  @Delete('account')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth(BEARER_AUTH_SCHEME)
+  @ApiOperation({
+    summary: 'Permanently delete authenticated user account and all cloud data',
+  })
+  @ApiOkResponse({ type: DeleteAccountResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT' })
+  async deleteAccount(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DeleteAccountResponseDto> {
+    return this.accountDeletionService.deleteUserAccount(user.userId);
   }
 }

@@ -45,6 +45,11 @@ export class LogoutResponseDto {
   success!: boolean;
 }
 
+export class DeleteAccountResponseDto {
+  @ApiProperty({ example: true })
+  success!: boolean;
+}
+
 export class UpdateProfileDto {
   @ApiProperty({ description: 'Display name (max 50 characters)' })
   @IsString()

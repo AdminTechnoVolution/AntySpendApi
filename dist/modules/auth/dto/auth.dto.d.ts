@@ -18,6 +18,9 @@ export declare class AuthTokensResponseDto {
 export declare class LogoutResponseDto {
     success: boolean;
 }
+export declare class DeleteAccountResponseDto {
+    success: boolean;
+}
 export declare class UpdateProfileDto {
     name: string;
 }

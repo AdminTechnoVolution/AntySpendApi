@@ -115,6 +115,7 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 - `POST /auth/google` — exchange Google idToken for JWT pair
 - `POST /auth/refresh` — refresh access token
 - `POST /auth/logout` — revoke refresh token
+- `DELETE /auth/account` — permanently delete authenticated user and all cloud data (Bearer JWT)
 - `GET /auth/me` — authenticated profile
 
 ### AI (Bearer JWT)

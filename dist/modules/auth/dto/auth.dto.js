@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdateProfileDto = exports.LogoutResponseDto = exports.AuthTokensResponseDto = exports.AuthUserDto = exports.RefreshTokenDto = exports.GoogleAuthDto = void 0;
+exports.UpdateProfileDto = exports.DeleteAccountResponseDto = exports.LogoutResponseDto = exports.AuthTokensResponseDto = exports.AuthUserDto = exports.RefreshTokenDto = exports.GoogleAuthDto = void 0;
 const swagger_1 = require("@nestjs/swagger");
 const class_validator_1 = require("class-validator");
 class GoogleAuthDto {
@@ -81,6 +81,14 @@ __decorate([
     (0, swagger_1.ApiProperty)({ example: true }),
     __metadata("design:type", Boolean)
 ], LogoutResponseDto.prototype, "success", void 0);
+class DeleteAccountResponseDto {
+    success;
+}
+exports.DeleteAccountResponseDto = DeleteAccountResponseDto;
+__decorate([
+    (0, swagger_1.ApiProperty)({ example: true }),
+    __metadata("design:type", Boolean)
+], DeleteAccountResponseDto.prototype, "success", void 0);
 class UpdateProfileDto {
     name;
 }
