@@ -17,6 +17,7 @@ import { CurrenciesModule } from './modules/currencies/currencies.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { AiModule } from './modules/ai/ai.module';
 import { SyncModule } from './modules/sync/sync.module';
+import { HouseholdsModule } from './modules/households/households.module';
 import { AppThrottlingModule } from './shared/throttling/throttling.module';
 
 @Module({
@@ -40,6 +41,7 @@ import { AppThrottlingModule } from './shared/throttling/throttling.module';
     ExchangeRatesModule,
     AiModule,
     SyncModule,
+    HouseholdsModule,
   ],
 })
 export class AppModule {}

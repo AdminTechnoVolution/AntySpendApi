@@ -21,6 +21,8 @@ export const envValidationSchema = Joi.object({
     .truthy('true', '1')
     .falsy('false', '0')
     .default(false),
+  GOOGLE_PLAY_PACKAGE_NAME: Joi.string().default('com.technovolution.antyspend'),
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Joi.string().allow('').default(''),
 });
 
 export type EnvConfig = {
@@ -37,4 +39,6 @@ export type EnvConfig = {
   RATE_LIMIT_MAX: number;
   RATE_LIMIT_TTL_MS: number;
   ENABLE_SWAGGER: boolean;
+  GOOGLE_PLAY_PACKAGE_NAME: string;
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: string;
 };

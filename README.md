@@ -9,6 +9,7 @@ NestJS backend for the [AntySpend](https://github.com/technovolution/AntySpend) 
 - JWT + Google idToken verification
 - OpenRouter (server-side only)
 - ExchangeRate-API proxy with Mongo cache
+- Google Play subscription verification (Personal & Family tiers)
 - Swagger UI at `/docs`, OpenAPI JSON at `/docs-json` and `/openapi.json` (when `ENABLE_SWAGGER=true`)
 
 ## Prerequisites
@@ -18,6 +19,7 @@ NestJS backend for the [AntySpend](https://github.com/technovolution/AntySpend) 
 - Google OAuth Web Client ID (same as Android)
 - OpenRouter API key (for AI endpoints)
 - ExchangeRate-API token (optional; for live FX rates)
+- Google Play service account JSON with Play Console API access (for subscription verification)
 
 ## Setup
 
@@ -66,6 +68,8 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `RATE_LIMIT_MAX` | No | Max requests per client per window (default `50`) |
 | `RATE_LIMIT_TTL_MS` | No | Rate limit window in ms (default `60000`) |
 | `ENABLE_SWAGGER` | No | Expose `/docs` and OpenAPI JSON (default `false`) |
+| `GOOGLE_PLAY_PACKAGE_NAME` | For billing | Android app id (default `com.technovolution.antyspend`) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | For billing | Filesystem path to Play Console service account JSON |
 | `PORT` | No | HTTP port (default `3000`) |
 
 ## Security
@@ -141,6 +145,14 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 - `GET /currencies` — global catalog (seeded on startup)
 - `POST /currencies/seed` — re-run seed
 
+### Entitlements (Bearer JWT)
+- `GET /entitlements/me` — current subscription: `planType`, `status`, `expiresAtMillis`, `productId`, `source`, `active`
+- `POST /entitlements/verify-purchase` — `{ productId, purchaseToken, packageName? }` verifies with Google Play and upserts entitlement
+
+Product IDs (configure matching subscriptions in Play Console):
+- `antyspend_personal_monthly` — Personal tier (cloud sync)
+- `antyspend_family_monthly` — Family tier (Personal + household features)
+
 ### Sync (Bearer JWT)
 - `POST /sync/push` — bulk LWW push `{ changes[], lastKnownServerVersion?, deviceId? }`
 - `GET /sync/pull?since=<serverVersion>` — pull all user entities
@@ -159,6 +171,19 @@ npm test             # unit tests
 npm run test:e2e     # e2e tests
 ```
 
+## Google Play Console setup
+
+1. Create app `com.technovolution.antyspend` in [Google Play Console](https://play.google.com/console).
+2. Create two monthly base-plan subscriptions:
+   - `antyspend_personal_monthly`
+   - `antyspend_family_monthly`
+3. In **Setup → API access**, link a Google Cloud project and create a service account with **View financial data** (or equivalent Play billing read access).
+4. Download the service account JSON and set `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` on the API server to its filesystem path.
+5. Add license testers under **Setup → License testing** for sandbox purchases.
+6. Publish the app to an **Internal testing** track to exercise real billing flows before production.
+
+The Android client calls `POST /entitlements/verify-purchase` after each purchase (and on restore) with the Play `purchaseToken`. The API calls `androidpublisher.purchases.subscriptions.get` to confirm expiry and upserts `user_entitlements`.
+
 ## Android integration
 
 1. After Google Sign-In, POST idToken to `/auth/google`; store `accessToken` + `refreshToken`.
@@ -166,6 +191,7 @@ npm run test:e2e     # e2e tests
 3. On 401, refresh via `/auth/refresh`.
 4. Replace direct OpenRouter / ExchangeRate calls with `/ai/*` and `/exchange-rates/latest`.
 5. Use `/sync/push` and `/sync/pull` for offline-first Room sync.
+6. After a Play subscription purchase, call `POST /entitlements/verify-purchase`; poll `GET /entitlements/me` for UI state.
 
 ## License
 

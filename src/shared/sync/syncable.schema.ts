@@ -9,11 +9,17 @@ export interface ISyncableEntity {
   deletedAtMillis?: number;
   clientUpdatedAtMillis?: number;
   deviceId?: string;
+  householdId?: string;
+  createdByUserId?: string;
 }
 
 export function syncableIndexes(schema: MongooseSchema) {
   schema.index({ userId: 1, id: 1 }, { unique: true });
   schema.index({ userId: 1, updatedAtMillis: 1 });
+}
+
+export function householdShareableIndexes(schema: MongooseSchema) {
+  schema.index({ householdId: 1, updatedAtMillis: 1 });
 }
 
 @Schema({ strict: true })
@@ -38,6 +44,12 @@ export class SyncableEntity implements ISyncableEntity {
 
   @Prop()
   deviceId?: string;
+
+  @Prop()
+  householdId?: string;
+
+  @Prop()
+  createdByUserId?: string;
 }
 
 export type SyncableDocument = HydratedDocument<SyncableEntity>;

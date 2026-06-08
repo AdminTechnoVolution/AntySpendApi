@@ -1,1 +1,0 @@
-{"version":3,"file":"create-entity-module.js","sourceRoot":"","sources":["../../../src/shared/crud/create-entity-module.ts"],"names":[],"mappings":";;;AACA,mEAA8D;AAE9D,MAAsB,iBAAkB,SAAQ,2CAAmB;IACjE,YAAsB,KAAqB,EAAE,UAAkB;QAC7D,KAAK,CAAC,KAAc,EAAE,UAAU,CAAC,CAAC;IACpC,CAAC;CACF;AAJD,8CAIC"}

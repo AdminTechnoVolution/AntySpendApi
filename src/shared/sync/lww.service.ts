@@ -65,6 +65,25 @@ export class LwwService {
     return String(updated.serverVersion);
   }
 
+  async bumpServerVersionForUsers(userIds: string[]): Promise<void> {
+    const uniqueIds = [...new Set(userIds)];
+    if (uniqueIds.length === 0) return;
+
+    const now = Date.now();
+    await Promise.all(
+      uniqueIds.map((userId) =>
+        this.syncMetadataModel.findOneAndUpdate(
+          { userId },
+          {
+            $set: { lastUpdatedAtMillis: now },
+            $inc: { serverVersion: 1 },
+          },
+          { upsert: true, setDefaultsOnInsert: true },
+        ),
+      ),
+    );
+  }
+
   async getServerVersion(userId: string): Promise<string> {
     const doc = await this.syncMetadataModel.findOne({ userId }).lean();
     return String(doc?.serverVersion ?? 0);

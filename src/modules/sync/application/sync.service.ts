@@ -35,6 +35,7 @@ import {
   Wallet,
   WalletDocument,
 } from '../../../shared/database/entity.schemas';
+import { HouseholdAuthzService } from '../../households/application/household-authz.service';
 
 type EntityModel = Model<Record<string, unknown>>;
 
@@ -60,6 +61,7 @@ export class SyncService {
     @InjectModel(InvestmentMovement.name)
     investmentMovementModel: Model<InvestmentMovementDocument>,
     private readonly lwwService: LwwService,
+    private readonly householdAuthz: HouseholdAuthzService,
   ) {
     this.entityMap = {
       settings: settingsModel as unknown as EntityModel,
@@ -81,6 +83,7 @@ export class SyncService {
     const rejected: Array<{ entityId: string; reason: string }> = [];
     const noop: string[] = [];
     let hasMutations = false;
+    const fanOutHouseholdIds = new Set<string>();
 
     for (const change of request.changes ?? []) {
       try {
@@ -90,19 +93,47 @@ export class SyncService {
         }
 
         const model = this.entityMap[change.entityType];
-        const filter =
-          change.entityType === 'settings'
-            ? { userId }
-            : { userId, id: change.entityId };
+        const provisionalHouseholdId = this.householdAuthz.resolveHouseholdId(
+          change,
+          null,
+        );
 
-        const existing = (await model.findOne(filter).lean()) as
+        const provisionalFilter = this.householdAuthz.buildEntityFilter(
+          userId,
+          change,
+          provisionalHouseholdId,
+        );
+
+        const existing = (await model.findOne(provisionalFilter).lean()) as
           | Record<string, unknown>
           | null;
 
+        const authz = await this.householdAuthz.authorizeSyncChange(
+          userId,
+          change,
+          existing,
+        );
+
+        if (!authz.allowed) {
+          rejected.push({ entityId: change.entityId, reason: authz.reason });
+          continue;
+        }
+
+        const householdId = authz.householdId || undefined;
+        const filter = this.householdAuthz.buildEntityFilter(
+          userId,
+          change,
+          householdId,
+        );
+
+        const existingDoc =
+          existing ??
+          ((await model.findOne(filter).lean()) as Record<string, unknown> | null);
+
         const decision = this.lwwService.decide(
           change,
-          existing?.updatedAtMillis as number | undefined,
-          existing?.deviceId as string | undefined,
+          existingDoc?.updatedAtMillis as number | undefined,
+          existingDoc?.deviceId as string | undefined,
         );
 
         if (decision.outcome === 'noop') {
@@ -133,11 +164,20 @@ export class SyncService {
           ...entityPayload,
           id:
             change.entityType === 'settings'
-              ? (existing?.id ?? change.entityId)
+              ? (existingDoc?.id ?? change.entityId)
               : change.entityId,
           userId,
           updatedAtMillis: change.updatedAtMillis,
           deviceId,
+          ...(householdId ? { householdId } : {}),
+          ...(householdId
+            ? {
+                createdByUserId:
+                  (change.payload.createdByUserId as string | undefined) ??
+                  (existingDoc?.createdByUserId as string | undefined) ??
+                  userId,
+              }
+            : {}),
           ...(change.deletedAtMillis !== undefined
             ? { deletedAtMillis: change.deletedAtMillis }
             : {}),
@@ -147,7 +187,7 @@ export class SyncService {
         });
 
         const createdAtMillis =
-          (existing?.createdAtMillis as number | undefined) ??
+          (existingDoc?.createdAtMillis as number | undefined) ??
           (change.payload.createdAtMillis as number | undefined) ??
           now;
 
@@ -162,6 +202,10 @@ export class SyncService {
 
         accepted.push(change.entityId);
         hasMutations = true;
+
+        if (householdId) {
+          fanOutHouseholdIds.add(householdId);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'UPSERT_FAILED';
         this.logger.warn(
@@ -171,9 +215,21 @@ export class SyncService {
       }
     }
 
-    const serverVersion = hasMutations
-      ? await this.lwwService.bumpServerVersion(userId)
-      : await this.lwwService.getServerVersion(userId);
+    if (hasMutations) {
+      if (fanOutHouseholdIds.size > 0) {
+        const memberIds = new Set<string>([userId]);
+        for (const householdId of fanOutHouseholdIds) {
+          const ids =
+            await this.householdAuthz.getActiveMemberUserIds(householdId);
+          ids.forEach((id) => memberIds.add(id));
+        }
+        await this.lwwService.bumpServerVersionForUsers([...memberIds]);
+      } else {
+        await this.lwwService.bumpServerVersion(userId);
+      }
+    }
+
+    const serverVersion = await this.lwwService.getServerVersion(userId);
 
     return { accepted, rejected, noop, serverVersion };
   }
@@ -184,26 +240,32 @@ export class SyncService {
       return { entities: [], newServerVersion: currentVersion };
     }
 
+    const householdId = await this.householdAuthz.getActiveHouseholdId(userId);
     const entities: SyncChange[] = [];
+    const seenIds = new Set<string>();
+
     for (const entityType of SYNC_ENTITY_TYPES) {
       const model = this.entityMap[entityType];
-      const docs = await model
-        .find({ userId })
+      const isShareable = this.householdAuthz.isShareableEntityType(entityType);
+
+      const privateDocs = await model
+        .find(this.householdAuthz.buildPrivatePullFilter(userId))
         .sort({ updatedAtMillis: 1 })
         .lean();
 
-      for (const doc of docs) {
-        const record = doc as Record<string, unknown>;
-        const { _id, __v, ...payload } = record;
-        entities.push({
-          entityType,
-          entityId: (record.id as string) ?? userId,
-          updatedAtMillis: record.updatedAtMillis as number,
-          deletedAtMillis: record.deletedAtMillis as number | undefined,
-          clientUpdatedAtMillis: record.clientUpdatedAtMillis as number | undefined,
-          deviceId: record.deviceId as string | undefined,
-          payload: payload as Record<string, unknown>,
-        });
+      for (const doc of privateDocs) {
+        this.appendSyncChange(entities, seenIds, entityType, doc);
+      }
+
+      if (householdId && isShareable) {
+        const sharedDocs = await model
+          .find(this.householdAuthz.buildSharedPullFilter(householdId))
+          .sort({ updatedAtMillis: 1 })
+          .lean();
+
+        for (const doc of sharedDocs) {
+          this.appendSyncChange(entities, seenIds, entityType, doc);
+        }
       }
     }
 
@@ -211,5 +273,28 @@ export class SyncService {
       entities,
       newServerVersion: currentVersion,
     };
+  }
+
+  private appendSyncChange(
+    entities: SyncChange[],
+    seenIds: Set<string>,
+    entityType: SyncEntityType,
+    doc: Record<string, unknown>,
+  ) {
+    const entityId = (doc.id as string) ?? '';
+    const dedupeKey = `${entityType}:${entityId}`;
+    if (seenIds.has(dedupeKey)) return;
+    seenIds.add(dedupeKey);
+
+    const { _id, __v, ...payload } = doc;
+    entities.push({
+      entityType,
+      entityId: entityId || (doc.userId as string),
+      updatedAtMillis: doc.updatedAtMillis as number,
+      deletedAtMillis: doc.deletedAtMillis as number | undefined,
+      clientUpdatedAtMillis: doc.clientUpdatedAtMillis as number | undefined,
+      deviceId: doc.deviceId as string | undefined,
+      payload: payload as Record<string, unknown>,
+    });
   }
 }

@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
-import { SyncableEntity, syncableIndexes } from '../../shared/sync/syncable.schema';
+import { SyncableEntity, syncableIndexes, householdShareableIndexes } from '../../shared/sync/syncable.schema';
 
 @Schema({ collection: 'user_settings', strict: true })
 export class UserSettings extends SyncableEntity {
@@ -79,6 +79,7 @@ export class Wallet extends SyncableEntity {
 export type WalletDocument = HydratedDocument<Wallet>;
 export const WalletSchema = SchemaFactory.createForClass(Wallet);
 syncableIndexes(WalletSchema);
+householdShareableIndexes(WalletSchema);
 
 @Schema({ collection: 'categories' })
 export class Category extends SyncableEntity {
@@ -104,6 +105,7 @@ export class Category extends SyncableEntity {
 export type CategoryDocument = HydratedDocument<Category>;
 export const CategorySchema = SchemaFactory.createForClass(Category);
 syncableIndexes(CategorySchema);
+householdShareableIndexes(CategorySchema);
 
 @Schema({ collection: 'merchants' })
 export class Merchant extends SyncableEntity {
@@ -193,6 +195,7 @@ export class Transaction extends SyncableEntity {
 export type TransactionDocument = HydratedDocument<Transaction>;
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
 syncableIndexes(TransactionSchema);
+householdShareableIndexes(TransactionSchema);
 TransactionSchema.index({ userId: 1, occurredAtMillis: -1 });
 
 @Schema({ collection: 'budgets' })
@@ -231,6 +234,7 @@ export class Budget extends SyncableEntity {
 export type BudgetDocument = HydratedDocument<Budget>;
 export const BudgetSchema = SchemaFactory.createForClass(Budget);
 syncableIndexes(BudgetSchema);
+householdShareableIndexes(BudgetSchema);
 
 @Schema({ collection: 'recurring_expenses' })
 export class RecurringExpense extends SyncableEntity {
@@ -324,6 +328,7 @@ export class SavingsPlan extends SyncableEntity {
 export type SavingsPlanDocument = HydratedDocument<SavingsPlan>;
 export const SavingsPlanSchema = SchemaFactory.createForClass(SavingsPlan);
 syncableIndexes(SavingsPlanSchema);
+householdShareableIndexes(SavingsPlanSchema);
 
 @Schema({ collection: 'savings_movements' })
 export class SavingsMovement extends SyncableEntity {
@@ -371,6 +376,7 @@ export type SavingsMovementDocument = HydratedDocument<SavingsMovement>;
 export const SavingsMovementSchema =
   SchemaFactory.createForClass(SavingsMovement);
 syncableIndexes(SavingsMovementSchema);
+householdShareableIndexes(SavingsMovementSchema);
 
 @Schema({ collection: 'investments' })
 export class Investment extends SyncableEntity {
@@ -399,6 +405,7 @@ export class Investment extends SyncableEntity {
 export type InvestmentDocument = HydratedDocument<Investment>;
 export const InvestmentSchema = SchemaFactory.createForClass(Investment);
 syncableIndexes(InvestmentSchema);
+householdShareableIndexes(InvestmentSchema);
 
 @Schema({ collection: 'investment_movements' })
 export class InvestmentMovement extends SyncableEntity {
@@ -428,6 +435,7 @@ export type InvestmentMovementDocument = HydratedDocument<InvestmentMovement>;
 export const InvestmentMovementSchema =
   SchemaFactory.createForClass(InvestmentMovement);
 syncableIndexes(InvestmentMovementSchema);
+householdShareableIndexes(InvestmentMovementSchema);
 
 @Schema({ collection: 'currencies', strict: true })
 export class Currency {

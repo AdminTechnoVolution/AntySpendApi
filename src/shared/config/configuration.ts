@@ -9,6 +9,11 @@ export default () => ({
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
   },
+  googlePlay: {
+    packageName:
+      process.env.GOOGLE_PLAY_PACKAGE_NAME ?? 'com.technovolution.antyspend',
+    serviceAccountJson: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON ?? '',
+  },
   openRouter: {
     apiKey: process.env.OPENROUTER_API_KEY ?? '',
     model: process.env.OPENROUTER_MODEL ?? 'google/gemini-2.5-flash-lite',

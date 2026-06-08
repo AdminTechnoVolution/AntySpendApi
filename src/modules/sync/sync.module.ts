@@ -29,11 +29,13 @@ import {
   Wallet,
   WalletSchema,
 } from '../../shared/database/entity.schemas';
+import { HouseholdsModule } from '../households/households.module';
 import { SyncService } from './application/sync.service';
 import { SyncController } from './presentation/sync.controller';
 
 @Module({
   imports: [
+    HouseholdsModule,
     MongooseModule.forFeature([
       { name: SyncMetadata.name, schema: SyncMetadataSchema },
       { name: UserSettings.name, schema: UserSettingsSchema },
