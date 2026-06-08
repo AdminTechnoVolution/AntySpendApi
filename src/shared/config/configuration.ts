@@ -12,7 +12,19 @@ export default () => ({
   googlePlay: {
     packageName:
       process.env.GOOGLE_PLAY_PACKAGE_NAME ?? 'com.technovolution.antyspend',
+    serviceAccountJsonBase64:
+      process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 ?? '',
     serviceAccountJson: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON ?? '',
+  },
+  rtdn: {
+    enabled:
+      process.env.RTDN_ENABLED === 'true' || process.env.RTDN_ENABLED === '1',
+    skipAuth:
+      process.env.RTDN_SKIP_AUTH === 'true' ||
+      process.env.RTDN_SKIP_AUTH === '1',
+    pubsubPushAudience: process.env.GOOGLE_PUBSUB_PUSH_AUDIENCE ?? '',
+    pubsubPushServiceAccountEmail:
+      process.env.GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL ?? '',
   },
   openRouter: {
     apiKey: process.env.OPENROUTER_API_KEY ?? '',

@@ -190,3 +190,7 @@ export class UserEntitlement {
 export type UserEntitlementDocument = HydratedDocument<UserEntitlement>;
 export const UserEntitlementSchema =
   SchemaFactory.createForClass(UserEntitlement);
+UserEntitlementSchema.index(
+  { googlePlayPurchaseToken: 1 },
+  { sparse: true, unique: true },
+);

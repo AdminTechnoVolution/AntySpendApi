@@ -22,7 +22,18 @@ export const envValidationSchema = Joi.object({
     .falsy('false', '0')
     .default(false),
   GOOGLE_PLAY_PACKAGE_NAME: Joi.string().default('com.technovolution.antyspend'),
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Joi.string().allow('').default(''),
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Joi.string().allow('').default(''),
+  RTDN_ENABLED: Joi.boolean()
+    .truthy('true', '1')
+    .falsy('false', '0')
+    .default(false),
+  RTDN_SKIP_AUTH: Joi.boolean()
+    .truthy('true', '1')
+    .falsy('false', '0')
+    .default(false),
+  GOOGLE_PUBSUB_PUSH_AUDIENCE: Joi.string().allow('').default(''),
+  GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL: Joi.string().allow('').default(''),
 });
 
 export type EnvConfig = {
@@ -40,5 +51,10 @@ export type EnvConfig = {
   RATE_LIMIT_TTL_MS: number;
   ENABLE_SWAGGER: boolean;
   GOOGLE_PLAY_PACKAGE_NAME: string;
+  GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: string;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: string;
+  RTDN_ENABLED: boolean;
+  RTDN_SKIP_AUTH: boolean;
+  GOOGLE_PUBSUB_PUSH_AUDIENCE: string;
+  GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL: string;
 };

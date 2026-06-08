@@ -18,6 +18,7 @@ import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.mod
 import { AiModule } from './modules/ai/ai.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { HouseholdsModule } from './modules/households/households.module';
+import { BillingNotificationsModule } from './modules/billing-notifications/billing-notifications.module';
 import { AppThrottlingModule } from './shared/throttling/throttling.module';
 
 @Module({
@@ -42,6 +43,7 @@ import { AppThrottlingModule } from './shared/throttling/throttling.module';
     AiModule,
     SyncModule,
     HouseholdsModule,
+    BillingNotificationsModule,
   ],
 })
 export class AppModule {}

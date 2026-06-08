@@ -69,7 +69,12 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `RATE_LIMIT_TTL_MS` | No | Rate limit window in ms (default `60000`) |
 | `ENABLE_SWAGGER` | No | Expose `/docs` and OpenAPI JSON (default `false`) |
 | `GOOGLE_PLAY_PACKAGE_NAME` | For billing | Android app id (default `com.technovolution.antyspend`) |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | For billing | Filesystem path to Play Console service account JSON |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` | For billing (prod) | Base64-encoded Play service account JSON (Azure App Settings) |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | For billing (local) | Filesystem path or inline JSON; leave empty in prod when using Base64 |
+| `RTDN_ENABLED` | For RTDN | Enable Pub/Sub push webhook processing (default `false`) |
+| `GOOGLE_PUBSUB_PUSH_AUDIENCE` | For RTDN | OIDC audience for push auth (webhook URL) |
+| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | For RTDN | Expected service account email on push JWT |
+| `RTDN_SKIP_AUTH` | For RTDN | Skip Pub/Sub OIDC auth (local dev only; default `false`) |
 | `PORT` | No | HTTP port (default `3000`) |
 
 ## Security
@@ -149,6 +154,9 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 - `GET /entitlements/me` — current subscription: `planType`, `status`, `expiresAtMillis`, `productId`, `source`, `active`
 - `POST /entitlements/verify-purchase` — `{ productId, purchaseToken, packageName? }` verifies with Google Play and upserts entitlement
 
+### Webhooks (Pub/Sub push, no user JWT)
+- `POST /webhooks/google-play/rtdn` — Google Play Real-time Developer Notifications via Cloud Pub/Sub push
+
 Product IDs (configure matching subscriptions in Play Console):
 - `antyspend_personal_monthly` — Personal tier (cloud sync)
 - `antyspend_family_monthly` — Family tier (Personal + household features)
@@ -169,7 +177,16 @@ npm run build        # compile
 npm run start:prod   # run compiled
 npm test             # unit tests
 npm run test:e2e     # e2e tests
+npm run billing:encode-sa -- /path/to/play-service-account.json  # Base64 for Azure
 ```
+
+## Azure App Service deploy
+
+Zip deploy uses Oryx only for `npm install` — **not** `nest build` (see `.deployment`: `SCM_DO_BUILD_DURING_DEPLOYMENT=false`). Build locally or in CI before deploy to avoid heap OOM on the server.
+
+- **VS Code:** copy [`.vscode/settings.json.example`](.vscode/settings.json.example) → `.vscode/settings.json` so deploy runs `npm run build` first and uploads `dist/`.
+- **GitHub Actions:** workflow builds on the runner, then deploys the artifact (no remote rebuild).
+- **Optional App Setting** if remote build is re-enabled: `NODE_OPTIONS` = `--max-old-space-size=2048`.
 
 ## Google Play Console setup
 
@@ -178,11 +195,69 @@ npm run test:e2e     # e2e tests
    - `antyspend_personal_monthly`
    - `antyspend_family_monthly`
 3. In **Setup → API access**, link a Google Cloud project and create a service account with **View financial data** (or equivalent Play billing read access).
-4. Download the service account JSON and set `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` on the API server to its filesystem path.
+4. Download the service account JSON.
+   - **Local dev:** set `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` in `.env` to the file path.
+   - **Azure (production):** run `npm run billing:encode-sa -- /path/to/play-sa.json`, copy the Base64 output, and set `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` in App Service **Environment variables**. Application settings persist across VS Code zip deploys — configure once, then deploy code as usual.
 5. Add license testers under **Setup → License testing** for sandbox purchases.
 6. Publish the app to an **Internal testing** track to exercise real billing flows before production.
 
-The Android client calls `POST /entitlements/verify-purchase` after each purchase (and on restore) with the Play `purchaseToken`. The API calls `androidpublisher.purchases.subscriptions.get` to confirm expiry and upserts `user_entitlements`.
+The Android client calls `POST /entitlements/verify-purchase` after each purchase (and on restore) with the Play `purchaseToken`. The API calls `androidpublisher.purchases.subscriptionsv2.get` (with v1 fallback) to confirm expiry and upserts `user_entitlements`.
+
+## Real-time Developer Notifications (RTDN)
+
+Google Play sends subscription lifecycle events (renewal, cancellation, expiration, grace period, etc.) to a Cloud Pub/Sub topic. A push subscription forwards them to the API webhook, which re-verifies the purchase with the Play Developer API and updates `user_entitlements` by `googlePlayPurchaseToken`.
+
+RTDN **does not replace** the client `POST /entitlements/verify-purchase` on first purchase; it keeps entitlements in sync afterward.
+
+### Flow
+
+```mermaid
+flowchart TB
+    subgraph purchase [First purchase - synchronous]
+        A1[App Play Store] --> A2[acknowledgePurchase]
+        A2 --> A3["POST /entitlements/verify-purchase"]
+        A3 --> A4[Play subscriptionsv2.get]
+        A4 --> A5[user_entitlements upsert by userId]
+    end
+
+    subgraph rtdn [Lifecycle - asynchronous]
+        R1[Google Play RTDN] --> R2[Pub/Sub topic play-billing-rtdn]
+        R2 --> R3["POST /webhooks/google-play/rtdn"]
+        R3 --> R4[Dedup by messageId]
+        R4 --> R5[Decode DeveloperNotification]
+        R5 --> R6[Play API re-verify]
+        R6 --> R7[Update by purchaseToken]
+    end
+```
+
+### GCP Pub/Sub setup
+
+1. Create topic `play-billing-rtdn` in your linked GCP project.
+2. Grant **Pub/Sub Publisher** on the topic to `google-play-developer-notifications@system.gserviceaccount.com`.
+3. Create push subscription `play-billing-rtdn-push`:
+   - **Push endpoint:** `https://api.antyspend.com/webhooks/google-play/rtdn`
+   - **Authentication:** OIDC token with your API service account as invoker
+   - **Audience:** same as `GOOGLE_PUBSUB_PUSH_AUDIENCE` (the webhook URL)
+
+### Play Console setup
+
+1. **Monetize → Monetization setup → Real-time developer notifications**
+2. Set topic: `projects/{GCP_PROJECT_ID}/topics/play-billing-rtdn`
+3. Click **Send test notification** — the API should return `200` with `{ "ok": true }`
+4. Save
+
+### RTDN environment variables
+
+| Variable | Description |
+|---|---|
+| `RTDN_ENABLED` | `true` to enforce Pub/Sub OIDC auth in production |
+| `GOOGLE_PUBSUB_PUSH_AUDIENCE` | Webhook URL used as JWT audience |
+| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | Expected `email` claim on push JWT |
+| `RTDN_SKIP_AUTH` | `true` for local testing without OIDC (never in production) |
+
+When `RTDN_ENABLED=false`, audience is unset in development, or `RTDN_SKIP_AUTH=true`, the webhook skips OIDC verification (with a warning log).
+
+See [docs/DEPLOY-BILLING.md](docs/DEPLOY-BILLING.md) for production deployment checklist and curl verification commands.
 
 ## Android integration
 

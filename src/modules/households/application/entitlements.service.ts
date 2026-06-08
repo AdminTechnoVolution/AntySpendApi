@@ -1,6 +1,7 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
@@ -12,6 +13,7 @@ import {
   UserEntitlement,
   UserEntitlementDocument,
 } from '../infrastructure/household.schemas';
+import { RTDN_NOTIFICATION_TYPE } from '../../../shared/billing/rtdn.constants';
 import { PlayBillingVerificationService } from './play-billing-verification.service';
 
 type EntitlementLean = {
@@ -26,6 +28,8 @@ type EntitlementLean = {
 
 @Injectable()
 export class EntitlementsService {
+  private readonly logger = new Logger(EntitlementsService.name);
+
   constructor(
     @InjectModel(UserEntitlement.name)
     private readonly entitlementModel: Model<UserEntitlementDocument>,
@@ -116,6 +120,114 @@ export class EntitlementsService {
       .lean();
 
     return this.toEntitlementResponse(doc!);
+  }
+
+  async syncEntitlementFromPlayByToken(
+    purchaseToken: string,
+    productId: string,
+    notificationType?: number,
+  ): Promise<void> {
+    const existing = await this.entitlementModel
+      .findOne({ googlePlayPurchaseToken: purchaseToken })
+      .lean();
+    if (!existing) {
+      this.logger.log(
+        `No entitlement for purchaseToken; skipping RTDN sync (await verify-purchase)`,
+      );
+      return;
+    }
+
+    const verified = await this.playBilling.verifySubscriptionV2(purchaseToken);
+    const resolvedProductId = verified.productId || productId;
+    const planType = this.playBilling.productIdToPlanType(resolvedProductId);
+    const now = Date.now();
+    const expiresAtMillis = verified.expiryTimeMillis;
+    const status = this.resolveStatusFromRtdn(
+      notificationType,
+      expiresAtMillis,
+      verified.subscriptionState,
+      now,
+    );
+
+    await this.entitlementModel.updateOne(
+      { googlePlayPurchaseToken: purchaseToken },
+      {
+        $set: {
+          planType,
+          status,
+          googlePlayProductId: resolvedProductId,
+          googlePlayOrderId: verified.orderId,
+          autoRenewing: verified.autoRenewing,
+          expiresAtMillis,
+          updatedAtMillis: now,
+        },
+      },
+    );
+  }
+
+  private resolveStatusFromRtdn(
+    notificationType: number | undefined,
+    expiresAtMillis: number,
+    subscriptionState: string,
+    now: number,
+  ): string {
+    const notExpired = expiresAtMillis > now;
+
+    switch (notificationType) {
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_CANCELED:
+        return notExpired
+          ? ENTITLEMENT_STATUS.CANCELED
+          : ENTITLEMENT_STATUS.EXPIRED;
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_EXPIRED:
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_REVOKED:
+        return ENTITLEMENT_STATUS.EXPIRED;
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_PURCHASED:
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RENEWED:
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RECOVERED:
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RESTARTED:
+        return notExpired
+          ? ENTITLEMENT_STATUS.ACTIVE
+          : ENTITLEMENT_STATUS.EXPIRED;
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_IN_GRACE_PERIOD:
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_ON_HOLD:
+      case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_PAUSED:
+        return this.statusFromPlaySubscriptionState(
+          subscriptionState,
+          expiresAtMillis,
+          now,
+        );
+      default:
+        return this.statusFromPlaySubscriptionState(
+          subscriptionState,
+          expiresAtMillis,
+          now,
+        );
+    }
+  }
+
+  private statusFromPlaySubscriptionState(
+    subscriptionState: string,
+    expiresAtMillis: number,
+    now: number,
+  ): string {
+    const notExpired = expiresAtMillis > now;
+
+    switch (subscriptionState) {
+      case 'SUBSCRIPTION_STATE_ACTIVE':
+        return notExpired ? ENTITLEMENT_STATUS.ACTIVE : ENTITLEMENT_STATUS.EXPIRED;
+      case 'SUBSCRIPTION_STATE_CANCELED':
+        return notExpired
+          ? ENTITLEMENT_STATUS.CANCELED
+          : ENTITLEMENT_STATUS.EXPIRED;
+      case 'SUBSCRIPTION_STATE_EXPIRED':
+        return ENTITLEMENT_STATUS.EXPIRED;
+      case 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD':
+      case 'SUBSCRIPTION_STATE_ON_HOLD':
+      case 'SUBSCRIPTION_STATE_PAUSED':
+        return notExpired ? ENTITLEMENT_STATUS.ACTIVE : ENTITLEMENT_STATUS.EXPIRED;
+      default:
+        return notExpired ? ENTITLEMENT_STATUS.ACTIVE : ENTITLEMENT_STATUS.EXPIRED;
+    }
   }
 
   private emptyEntitlement(userId: string) {

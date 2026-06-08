@@ -8,19 +8,24 @@ import {
   PLAY_PRODUCT_FAMILY,
   PLAY_PRODUCT_PERSONAL,
 } from '../infrastructure/household.schemas';
+import { RTDN_NOTIFICATION_TYPE } from '../../../shared/billing/rtdn.constants';
 
 describe('EntitlementsService', () => {
   const findOne = jest.fn();
   const findOneAndUpdate = jest.fn();
+  const updateOne = jest.fn();
   const entitlementModel = {
     findOne,
     findOneAndUpdate,
+    updateOne,
   };
 
   const verifySubscription = jest.fn();
+  const verifySubscriptionV2 = jest.fn();
   const productIdToPlanType = jest.fn();
   const playBilling = {
     verifySubscription,
+    verifySubscriptionV2,
     productIdToPlanType,
   } as unknown as PlayBillingVerificationService;
 
@@ -279,6 +284,126 @@ describe('EntitlementsService', () => {
       await expect(
         service.verifyPurchase(userId, 'unknown_product', 'token'),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('syncEntitlementFromPlayByToken', () => {
+    it('skips when no entitlement exists for purchase token', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+      await service.syncEntitlementFromPlayByToken(
+        'unknown-token',
+        PLAY_PRODUCT_PERSONAL,
+        RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RENEWED,
+      );
+
+      expect(verifySubscriptionV2).not.toHaveBeenCalled();
+      expect(updateOne).not.toHaveBeenCalled();
+    });
+
+    it('re-verifies Play and updates entitlement on renewal', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          userId,
+          googlePlayPurchaseToken: 'token-renewed',
+          planType: PLAN_TYPE.PERSONAL,
+          status: ENTITLEMENT_STATUS.ACTIVE,
+        }),
+      });
+      verifySubscriptionV2.mockResolvedValue({
+        expiryTimeMillis: futureExpiry,
+        autoRenewing: true,
+        orderId: 'GPA.renewed',
+        productId: PLAY_PRODUCT_PERSONAL,
+        subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+      });
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+      updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await service.syncEntitlementFromPlayByToken(
+        'token-renewed',
+        PLAY_PRODUCT_PERSONAL,
+        RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RENEWED,
+      );
+
+      expect(verifySubscriptionV2).toHaveBeenCalledWith('token-renewed');
+      expect(updateOne).toHaveBeenCalledWith(
+        { googlePlayPurchaseToken: 'token-renewed' },
+        {
+          $set: expect.objectContaining({
+            planType: PLAN_TYPE.PERSONAL,
+            status: ENTITLEMENT_STATUS.ACTIVE,
+            expiresAtMillis: futureExpiry,
+            autoRenewing: true,
+          }),
+        },
+      );
+    });
+
+    it('marks CANCELED when RTDN reports cancellation but not expired', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          userId,
+          googlePlayPurchaseToken: 'token-cancel',
+        }),
+      });
+      verifySubscriptionV2.mockResolvedValue({
+        expiryTimeMillis: futureExpiry,
+        autoRenewing: false,
+        orderId: 'GPA.cancel',
+        productId: PLAY_PRODUCT_PERSONAL,
+        subscriptionState: 'SUBSCRIPTION_STATE_CANCELED',
+      });
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+      updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await service.syncEntitlementFromPlayByToken(
+        'token-cancel',
+        PLAY_PRODUCT_PERSONAL,
+        RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_CANCELED,
+      );
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { googlePlayPurchaseToken: 'token-cancel' },
+        {
+          $set: expect.objectContaining({
+            status: ENTITLEMENT_STATUS.CANCELED,
+          }),
+        },
+      );
+    });
+
+    it('marks EXPIRED on SUBSCRIPTION_EXPIRED notification', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          userId,
+          googlePlayPurchaseToken: 'token-expired',
+        }),
+      });
+      verifySubscriptionV2.mockResolvedValue({
+        expiryTimeMillis: pastExpiry,
+        autoRenewing: false,
+        orderId: 'GPA.expired',
+        productId: PLAY_PRODUCT_PERSONAL,
+        subscriptionState: 'SUBSCRIPTION_STATE_EXPIRED',
+      });
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+      updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await service.syncEntitlementFromPlayByToken(
+        'token-expired',
+        PLAY_PRODUCT_PERSONAL,
+        RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_EXPIRED,
+      );
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { googlePlayPurchaseToken: 'token-expired' },
+        {
+          $set: expect.objectContaining({
+            status: ENTITLEMENT_STATUS.EXPIRED,
+          }),
+        },
+      );
     });
   });
 });
