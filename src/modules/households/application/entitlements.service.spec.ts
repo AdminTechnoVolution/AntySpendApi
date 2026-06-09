@@ -20,6 +20,12 @@ describe('EntitlementsService', () => {
     updateOne,
   };
 
+  const memberFindOne = jest.fn();
+  const memberModel = { findOne: memberFindOne };
+
+  const householdFindOne = jest.fn();
+  const householdModel = { findOne: householdFindOne };
+
   const verifySubscription = jest.fn();
   const verifySubscriptionV2 = jest.fn();
   const productIdToPlanType = jest.fn();
@@ -35,6 +41,8 @@ describe('EntitlementsService', () => {
   let service: EntitlementsService;
 
   const userId = '507f1f77bcf86cd799439011';
+  const ownerId = '507f1f77bcf86cd799439012';
+  const householdId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const futureExpiry = Date.now() + 30 * 24 * 60 * 60 * 1000;
   const pastExpiry = Date.now() - 60_000;
 
@@ -42,9 +50,13 @@ describe('EntitlementsService', () => {
     jest.clearAllMocks();
     service = new EntitlementsService(
       entitlementModel as never,
+      memberModel as never,
+      householdModel as never,
       playBilling,
       config as never,
     );
+    memberFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+    householdFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
     configGet.mockImplementation((key: string) => {
       if (key === 'googlePlay.packageName') {
         return 'com.technovolution.antyspend';
@@ -107,6 +119,44 @@ describe('EntitlementsService', () => {
     });
   });
 
+  describe('hasActiveFamilyPlan', () => {
+    it('returns true for active FAMILY entitlement', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          planType: PLAN_TYPE.FAMILY,
+          status: ENTITLEMENT_STATUS.ACTIVE,
+          expiresAtMillis: futureExpiry,
+        }),
+      });
+
+      expect(await service.hasActiveFamilyPlan(userId)).toBe(true);
+    });
+
+    it('returns false for active PERSONAL entitlement', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          planType: PLAN_TYPE.PERSONAL,
+          status: ENTITLEMENT_STATUS.ACTIVE,
+          expiresAtMillis: futureExpiry,
+        }),
+      });
+
+      expect(await service.hasActiveFamilyPlan(userId)).toBe(false);
+    });
+
+    it('returns false when FAMILY entitlement is expired', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          planType: PLAN_TYPE.FAMILY,
+          status: ENTITLEMENT_STATUS.EXPIRED,
+          expiresAtMillis: pastExpiry,
+        }),
+      });
+
+      expect(await service.hasActiveFamilyPlan(userId)).toBe(false);
+    });
+  });
+
   describe('requireFamilyPlan', () => {
     it('allows active FAMILY entitlement', async () => {
       findOne.mockReturnValue({
@@ -148,6 +198,8 @@ describe('EntitlementsService', () => {
         source: null,
         active: false,
         autoRenewing: null,
+        premiumAccessActive: false,
+        familyPlanBeneficiary: false,
       });
     });
 
@@ -169,6 +221,97 @@ describe('EntitlementsService', () => {
       expect(result.active).toBe(true);
       expect(result.planType).toBe(PLAN_TYPE.FAMILY);
       expect(result.productId).toBe(PLAY_PRODUCT_FAMILY);
+      expect(result.premiumAccessActive).toBe(true);
+      expect(result.familyPlanBeneficiary).toBe(false);
+    });
+
+    it('grants premium via household when member has no own subscription', async () => {
+      findOne.mockImplementation(({ userId: queriedUserId }: { userId: string }) => ({
+        lean: jest.fn().mockResolvedValue(
+          queriedUserId === ownerId
+            ? {
+                userId: ownerId,
+                planType: PLAN_TYPE.FAMILY,
+                status: ENTITLEMENT_STATUS.ACTIVE,
+                expiresAtMillis: futureExpiry,
+              }
+            : null,
+        ),
+      }));
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          householdId,
+          userId,
+          status: 'ACTIVE',
+        }),
+      });
+      householdFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: householdId,
+          ownerUserId: ownerId,
+        }),
+      });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.active).toBe(false);
+      expect(result.premiumAccessActive).toBe(true);
+      expect(result.familyPlanBeneficiary).toBe(true);
+    });
+
+    it('denies premium when household owner family plan is expired', async () => {
+      findOne.mockImplementation(({ userId: queriedUserId }: { userId: string }) => ({
+        lean: jest.fn().mockResolvedValue(
+          queriedUserId === ownerId
+            ? {
+                userId: ownerId,
+                planType: PLAN_TYPE.FAMILY,
+                status: ENTITLEMENT_STATUS.EXPIRED,
+                expiresAtMillis: pastExpiry,
+              }
+            : null,
+        ),
+      }));
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          householdId,
+          userId,
+          status: 'ACTIVE',
+        }),
+      });
+      householdFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: householdId,
+          ownerUserId: ownerId,
+        }),
+      });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.active).toBe(false);
+      expect(result.premiumAccessActive).toBe(false);
+      expect(result.familyPlanBeneficiary).toBe(false);
+    });
+
+    it('keeps active own-only semantics for personal subscribers', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          userId,
+          planType: PLAN_TYPE.PERSONAL,
+          status: ENTITLEMENT_STATUS.ACTIVE,
+          source: ENTITLEMENT_SOURCE.PLAY_STORE,
+          expiresAtMillis: futureExpiry,
+          googlePlayProductId: PLAY_PRODUCT_PERSONAL,
+          autoRenewing: true,
+        }),
+      });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.active).toBe(true);
+      expect(result.premiumAccessActive).toBe(true);
+      expect(result.familyPlanBeneficiary).toBe(false);
+      expect(memberFindOne).not.toHaveBeenCalled();
     });
   });
 

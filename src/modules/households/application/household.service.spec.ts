@@ -52,9 +52,11 @@ describe('HouseholdService', () => {
 
   const requireFamilyPlan = jest.fn();
   const getPlanType = jest.fn();
+  const hasActiveFamilyPlan = jest.fn();
   const entitlementsService = {
     requireFamilyPlan,
     getPlanType,
+    hasActiveFamilyPlan,
   } as unknown as EntitlementsService;
 
   let service: HouseholdService;
@@ -80,6 +82,7 @@ describe('HouseholdService', () => {
     memberCountDocuments.mockResolvedValue(1);
     inviteCountDocuments.mockResolvedValue(0);
     getPlanType.mockResolvedValue('PERSONAL');
+    hasActiveFamilyPlan.mockResolvedValue(false);
     userFindById.mockReturnValue({
       lean: jest.fn().mockResolvedValue({
         _id: ownerId,
@@ -98,6 +101,193 @@ describe('HouseholdService', () => {
       expect(getPlanType).toHaveBeenCalledWith(ownerId);
       expect(result.planType).toBe('FAMILY');
       expect(result.household).toBeNull();
+    });
+
+    it('sets familyFeaturesActive from user when no household exists', async () => {
+      hasActiveFamilyPlan.mockResolvedValue(true);
+
+      const result = await service.getMyHousehold(ownerId);
+
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(ownerId);
+      expect(result.familyFeaturesActive).toBe(true);
+    });
+
+    it('sets familyFeaturesActive false when user has no active family plan and no household', async () => {
+      hasActiveFamilyPlan.mockResolvedValue(false);
+
+      const result = await service.getMyHousehold(ownerId);
+
+      expect(result.familyFeaturesActive).toBe(false);
+    });
+
+    it('uses owner entitlement for familyFeaturesActive when user is a member', async () => {
+      hasActiveFamilyPlan.mockResolvedValue(true);
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'member-2',
+          householdId,
+          userId: memberId,
+          role: MEMBER_ROLE.MEMBER,
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+      householdFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: householdId,
+          ownerUserId: ownerId,
+          name: 'Family',
+          planType: 'FAMILY',
+          maxMembers: 5,
+          createdAtMillis: 1_000,
+          updatedAtMillis: 2_000,
+        }),
+      });
+      memberFind.mockReturnValue({
+        lean: jest.fn().mockResolvedValue([
+          {
+            id: 'member-1',
+            householdId,
+            userId: ownerId,
+            role: MEMBER_ROLE.OWNER,
+            status: MEMBER_STATUS.ACTIVE,
+          },
+          {
+            id: 'member-2',
+            householdId,
+            userId: memberId,
+            role: MEMBER_ROLE.MEMBER,
+            status: MEMBER_STATUS.ACTIVE,
+          },
+        ]),
+      });
+      inviteFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+
+      const result = await service.getMyHousehold(memberId);
+
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(ownerId);
+      expect(hasActiveFamilyPlan).not.toHaveBeenCalledWith(memberId);
+      expect(result.familyFeaturesActive).toBe(true);
+    });
+
+    it('blocks family features for owner and members when owner plan is inactive', async () => {
+      hasActiveFamilyPlan.mockResolvedValue(false);
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'member-1',
+          householdId,
+          userId: ownerId,
+          role: MEMBER_ROLE.OWNER,
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+      householdFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: householdId,
+          ownerUserId: ownerId,
+          name: 'Family',
+          planType: 'FAMILY',
+          maxMembers: 5,
+          createdAtMillis: 1_000,
+          updatedAtMillis: 2_000,
+        }),
+      });
+      memberFind.mockReturnValue({
+        lean: jest.fn().mockResolvedValue([
+          {
+            id: 'member-1',
+            householdId,
+            userId: ownerId,
+            role: MEMBER_ROLE.OWNER,
+            status: MEMBER_STATUS.ACTIVE,
+          },
+        ]),
+      });
+      inviteFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+
+      const ownerResult = await service.getMyHousehold(ownerId);
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(ownerId);
+      expect(ownerResult.familyFeaturesActive).toBe(false);
+
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'member-2',
+          householdId,
+          userId: memberId,
+          role: MEMBER_ROLE.MEMBER,
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+      memberFind.mockReturnValue({
+        lean: jest.fn().mockResolvedValue([
+          {
+            id: 'member-1',
+            householdId,
+            userId: ownerId,
+            role: MEMBER_ROLE.OWNER,
+            status: MEMBER_STATUS.ACTIVE,
+          },
+          {
+            id: 'member-2',
+            householdId,
+            userId: memberId,
+            role: MEMBER_ROLE.MEMBER,
+            status: MEMBER_STATUS.ACTIVE,
+          },
+        ]),
+      });
+      hasActiveFamilyPlan.mockClear();
+      hasActiveFamilyPlan.mockResolvedValue(false);
+
+      const memberResult = await service.getMyHousehold(memberId);
+
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(ownerId);
+      expect(memberResult.familyFeaturesActive).toBe(false);
+    });
+
+    it('returns currentUserId and currentUserRole for active owner household', async () => {
+      getPlanType.mockResolvedValue('FAMILY');
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'member-1',
+          householdId,
+          userId: ownerId,
+          role: MEMBER_ROLE.OWNER,
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+      householdFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: householdId,
+          ownerUserId: ownerId,
+          name: 'Family',
+          planType: 'FAMILY',
+          maxMembers: 5,
+          createdAtMillis: 1_000,
+          updatedAtMillis: 2_000,
+        }),
+      });
+      memberFind.mockReturnValue({
+        lean: jest.fn().mockResolvedValue([
+          {
+            id: 'member-1',
+            householdId,
+            userId: ownerId,
+            role: MEMBER_ROLE.OWNER,
+            status: MEMBER_STATUS.ACTIVE,
+          },
+        ]),
+      });
+      inviteFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+
+      hasActiveFamilyPlan.mockResolvedValue(true);
+
+      const result = await service.getMyHousehold(ownerId);
+
+      expect(result.currentUserId).toBe(ownerId);
+      expect(result.currentUserRole).toBe('OWNER');
+      expect(result.household).toMatchObject({ id: householdId });
+      expect(result.familyFeaturesActive).toBe(true);
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(ownerId);
     });
   });
 

@@ -54,12 +54,15 @@ export class HouseholdService {
       .lean();
 
     if (!membership) {
+      const familyFeaturesActive =
+        await this.entitlementsService.hasActiveFamilyPlan(userId);
       return {
         household: null,
         membership: null,
         members: [],
         pendingInvites: [],
         planType,
+        familyFeaturesActive,
       };
     }
 
@@ -68,14 +71,20 @@ export class HouseholdService {
       .lean();
 
     if (!household) {
+      const familyFeaturesActive =
+        await this.entitlementsService.hasActiveFamilyPlan(userId);
       return {
         household: null,
         membership: null,
         members: [],
         pendingInvites: [],
         planType,
+        familyFeaturesActive,
       };
     }
+
+    const familyFeaturesActive =
+      await this.entitlementsService.hasActiveFamilyPlan(household.ownerUserId);
 
     const members = await this.memberModel
       .find({ householdId: membership.householdId, status: MEMBER_STATUS.ACTIVE })
@@ -98,6 +107,9 @@ export class HouseholdService {
       members: members.map((m) => toPlain(m)),
       pendingInvites: pendingInvites.map((i) => toPlain(i)),
       planType,
+      familyFeaturesActive,
+      currentUserId: userId,
+      currentUserRole: membership.role,
     };
   }
 

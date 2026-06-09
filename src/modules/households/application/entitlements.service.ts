@@ -9,6 +9,11 @@ import { Model } from 'mongoose';
 import {
   ENTITLEMENT_SOURCE,
   ENTITLEMENT_STATUS,
+  Household,
+  HouseholdDocument,
+  HouseholdMember,
+  HouseholdMemberDocument,
+  MEMBER_STATUS,
   PLAN_TYPE,
   UserEntitlement,
   UserEntitlementDocument,
@@ -33,6 +38,10 @@ export class EntitlementsService {
   constructor(
     @InjectModel(UserEntitlement.name)
     private readonly entitlementModel: Model<UserEntitlementDocument>,
+    @InjectModel(HouseholdMember.name)
+    private readonly memberModel: Model<HouseholdMemberDocument>,
+    @InjectModel(Household.name)
+    private readonly householdModel: Model<HouseholdDocument>,
     private readonly playBilling: PlayBillingVerificationService,
     private readonly config: ConfigService,
   ) {}
@@ -58,6 +67,14 @@ export class EntitlementsService {
     return doc.planType;
   }
 
+  async hasActiveFamilyPlan(userId: string): Promise<boolean> {
+    const doc = await this.entitlementModel.findOne({ userId }).lean();
+    if (!doc || !this.isActive(doc)) {
+      return false;
+    }
+    return doc.planType === PLAN_TYPE.FAMILY;
+  }
+
   async requireFamilyPlan(userId: string): Promise<void> {
     const planType = await this.getPlanType(userId);
     if (planType !== PLAN_TYPE.FAMILY) {
@@ -67,10 +84,43 @@ export class EntitlementsService {
 
   async getMyEntitlement(userId: string) {
     const doc = await this.entitlementModel.findOne({ userId }).lean();
-    if (!doc) {
-      return this.emptyEntitlement(userId);
+    const base = !doc
+      ? this.emptyEntitlement(userId)
+      : this.toEntitlementResponse(doc);
+    const premiumFlags = await this.resolvePremiumAccess(userId, base.active);
+    return { ...base, ...premiumFlags };
+  }
+
+  private async resolvePremiumAccess(
+    userId: string,
+    ownActive: boolean,
+  ): Promise<{
+    premiumAccessActive: boolean;
+    familyPlanBeneficiary: boolean;
+  }> {
+    if (ownActive) {
+      return { premiumAccessActive: true, familyPlanBeneficiary: false };
     }
-    return this.toEntitlementResponse(doc);
+
+    const membership = await this.memberModel
+      .findOne({ userId, status: MEMBER_STATUS.ACTIVE })
+      .lean();
+    if (!membership) {
+      return { premiumAccessActive: false, familyPlanBeneficiary: false };
+    }
+
+    const household = await this.householdModel
+      .findOne({ id: membership.householdId })
+      .lean();
+    if (!household) {
+      return { premiumAccessActive: false, familyPlanBeneficiary: false };
+    }
+
+    const ownerActive = await this.hasActiveFamilyPlan(household.ownerUserId);
+    return {
+      premiumAccessActive: ownerActive,
+      familyPlanBeneficiary: ownerActive,
+    };
   }
 
   async verifyPurchase(
@@ -240,6 +290,8 @@ export class EntitlementsService {
       source: null,
       active: false,
       autoRenewing: null,
+      premiumAccessActive: false,
+      familyPlanBeneficiary: false,
     };
   }
 
