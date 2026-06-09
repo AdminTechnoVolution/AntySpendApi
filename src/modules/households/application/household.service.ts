@@ -161,6 +161,29 @@ export class HouseholdService {
     };
   }
 
+  async updateHousehold(householdId: string, userId: string, name: string) {
+    await this.assertOwnerAccess(householdId, userId);
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestException('NAME_REQUIRED');
+    }
+
+    const now = Date.now();
+    const updated = await this.householdModel
+      .findOneAndUpdate(
+        { id: householdId },
+        { $set: { name: trimmed, updatedAtMillis: now } },
+        { returnDocument: 'after' },
+      )
+      .lean();
+
+    if (!updated) {
+      throw new NotFoundException('HOUSEHOLD_NOT_FOUND');
+    }
+
+    return toPlain(updated);
+  }
+
   async createInvite(householdId: string, userId: string, email?: string) {
     await this.assertOwnerAccess(householdId, userId);
     await this.assertMemberCapacity(householdId);

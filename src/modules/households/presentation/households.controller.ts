@@ -23,6 +23,7 @@ import { ParseEntityIdPipe } from '../../../shared/security/parse-entity-id.pipe
 import {
   CreateHouseholdDto,
   CreateInviteDto,
+  UpdateHouseholdDto,
   UpdatePrivacyDto,
 } from '../dto/household.dto';
 import { HouseholdService } from '../application/household.service';
@@ -117,6 +118,18 @@ export class HouseholdsController {
     @Param('id', ParseEntityIdPipe) id: string,
   ) {
     return this.householdService.leaveHousehold(id, user.userId);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update household metadata (owner only)' })
+  @ApiOkResponse({ description: 'Updated household' })
+  @ApiStandardAuthResponses()
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Body() body: UpdateHouseholdDto,
+  ) {
+    return this.householdService.updateHousehold(id, user.userId, body.name);
   }
 
   @Patch('members/me/privacy')

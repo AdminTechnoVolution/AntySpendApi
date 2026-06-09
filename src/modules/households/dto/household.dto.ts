@@ -29,6 +29,13 @@ export class CreateHouseholdDto {
   name?: string;
 }
 
+export class UpdateHouseholdDto {
+  @ApiProperty({ maxLength: 80 })
+  @IsString()
+  @MaxLength(80)
+  name!: string;
+}
+
 export class CreateInviteDto {
   @ApiPropertyOptional()
   @IsOptional()
