@@ -100,6 +100,7 @@ The process should load NestJS modules. It may exit on missing env vars — that
 | `Cannot find module '.../dist/src/main'` | `dist/` missing from zip — run `npm run build` before deploy |
 | Immediate crash, Joi message in logs | Missing `MONGODB_URI`, `JWT_SECRET`, or `GOOGLE_CLIENT_ID` in App Settings |
 | Heap OOM during deploy | Remote `nest build` — build locally/CI only; never run `npm run build` on Azure |
+| Deploy stuck on `Running preDeployTask "deploy-prep"` | VS Code `$tsc` problem matcher on `nest build` never signals completion — use `.vscode/tasks.json` with `"problemMatcher": []` on the build step (see repo) |
 | `npm ci` fails on server | Not used when `node_modules` is bundled; fix lock file locally with `npx npm@10.9.2 install` |
 
 No `web.config` is required on Linux App Service. `web.config` / iisnode applies only to Windows App Service plans.
