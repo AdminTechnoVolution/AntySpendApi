@@ -8,13 +8,13 @@ The Azure App Service extension deploys application code via zip deploy to `site
 
 ### Build on deploy (avoid Azure OOM)
 
-Azure App Service has limited RAM (~1–1.75 GB on Basic). Running `nest build` on the server often fails with **JavaScript heap out of memory**. This repo ships **pre-built** `dist/` and skips the remote Oryx build (`.deployment` sets `SCM_DO_BUILD_DURING_DEPLOYMENT=false`).
+Azure App Service has limited RAM (~1–1.75 GB on Basic). Running `nest build` on the server often fails with **JavaScript heap out of memory**. This repo ships **pre-built** `dist/` and uses Oryx for **`npm ci --omit=dev` only** (`.deployment` sets `CUSTOM_BUILD_COMMAND`; no remote `nest build`).
 
-1. Copy [`.vscode/settings.json.example`](../.vscode/settings.json.example) to `.vscode/settings.json` (gitignored). It runs `npm run build` locally before zip deploy and includes `dist/` in the upload (while still excluding `node_modules` and `.env`).
-2. Deploy from VS Code as usual — the extension builds on your machine, then uploads source + `dist/`.
+1. Copy [`.vscode/settings.json.example`](../.vscode/settings.json.example) to `.vscode/settings.json` (gitignored). It runs `npm run build` locally before zip deploy and includes `dist/`, `package.json`, and `package-lock.json` in the upload (while still excluding `node_modules` and `.env`).
+2. Deploy from VS Code as usual — the extension builds on your machine, then Azure installs production dependencies during deploy.
 3. Optional fallback if you ever re-enable remote build: Azure Portal → App Service → **Environment variables** → add `NODE_OPTIONS` = `--max-old-space-size=2048` (build phase only; remove or lower if runtime is tight on RAM).
 
-GitHub Actions builds on the runner before deploy; the same `.deployment` flag prevents a redundant (and OOM-prone) rebuild on Azure.
+GitHub Actions builds on the runner before deploy; the same `.deployment` config runs install-only Oryx on Azure.
 
 ### Billing secrets (one-time)
 
@@ -42,15 +42,19 @@ GitHub Actions builds on the runner before deploy; the same `.deployment` flag p
 | `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | Yes (for RTDN) | Service account used by Pub/Sub push OIDC |
 | `RTDN_SKIP_AUTH` | No | Must be `false` in production |
 
-### Other App Settings (likely already configured)
+### Other App Settings (required for boot)
+
+See [DEPLOY.md](./DEPLOY.md) for full Azure deployment guide. Minimum settings:
 
 | Variable | Example |
 |---|---|
 | `MONGODB_URI` | `mongodb+srv://...` |
-| `JWT_SECRET` | Long random secret |
+| `JWT_SECRET` | Long random secret (min 16 chars) |
 | `GOOGLE_CLIENT_ID` | `....apps.googleusercontent.com` |
 | `NODE_ENV` | `production` |
-| `PORT` | `8080` (often injected by Azure) |
+| `PORT` | `8080` (injected by Azure; do not omit if overriding manually) |
+
+Startup command: leave default `npm start` (runs `node dist/src/main`) or set `node dist/src/main.js` explicitly.
 
 ## Play Console prerequisites
 

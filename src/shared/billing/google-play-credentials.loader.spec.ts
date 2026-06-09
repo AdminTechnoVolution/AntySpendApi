@@ -161,4 +161,41 @@ describe('loadGooglePlayServiceAccountCredentials', () => {
       );
     }
   });
+
+  it('accepts base64 pasted in serviceAccountJson by mistake', () => {
+    const base64 = Buffer.from(JSON.stringify(validCredentials), 'utf8').toString(
+      'base64',
+    );
+
+    const result = loadGooglePlayServiceAccountCredentials({
+      serviceAccountJson: base64,
+    });
+
+    expect(result).toEqual(validCredentials);
+    expect(readFileSync).not.toHaveBeenCalled();
+  });
+
+  it('strips surrounding quotes and whitespace from base64', () => {
+    const base64 = Buffer.from(JSON.stringify(validCredentials), 'utf8').toString(
+      'base64',
+    );
+
+    const result = loadGooglePlayServiceAccountCredentials({
+      serviceAccountJsonBase64: `" ${base64.slice(0, 20)}\n${base64.slice(20)}" `,
+    });
+
+    expect(result).toEqual(validCredentials);
+  });
+
+  it('normalizes escaped newlines in private_key', () => {
+    const result = loadGooglePlayServiceAccountCredentials({
+      serviceAccountJson: JSON.stringify({
+        ...validCredentials,
+        private_key:
+          '-----BEGIN PRIVATE KEY-----\\nkey\\n-----END PRIVATE KEY-----\\n',
+      }),
+    });
+
+    expect(result.private_key).toBe(validCredentials.private_key);
+  });
 });

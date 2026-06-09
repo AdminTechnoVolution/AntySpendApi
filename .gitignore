@@ -33,3 +33,5 @@ Thumbs.db
 !.vscode/settings.json.example
 *.swp
 *.swo
+node_modules
+node_modules

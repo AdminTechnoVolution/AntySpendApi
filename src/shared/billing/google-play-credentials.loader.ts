@@ -24,6 +24,39 @@ export class GooglePlayCredentialsError extends Error {
   }
 }
 
+function normalizeEnvSecret(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  let trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
+function normalizeBase64Input(base64: string): string {
+  return base64.replace(/\s/g, '');
+}
+
+function looksLikeBase64(value: string): boolean {
+  const cleaned = normalizeBase64Input(value);
+  return cleaned.length >= 100 && /^[A-Za-z0-9+/=]+$/.test(cleaned);
+}
+
+function normalizePrivateKey(privateKey: string): string {
+  if (privateKey.includes('\\n')) {
+    return privateKey.replace(/\\n/g, '\n');
+  }
+
+  return privateKey;
+}
+
 function parseCredentialsJson(raw: string): GooglePlayServiceAccountCredentials {
   let parsed: unknown;
   try {
@@ -65,6 +98,8 @@ function parseCredentialsJson(raw: string): GooglePlayServiceAccountCredentials 
     );
   }
 
+  record.private_key = normalizePrivateKey(record.private_key);
+
   return record as GooglePlayServiceAccountCredentials;
 }
 
@@ -101,12 +136,12 @@ function readCredentialsFromFile(
 export function loadGooglePlayServiceAccountCredentials(
   config: GooglePlayCredentialsConfig,
 ): GooglePlayServiceAccountCredentials {
-  const base64 = config.serviceAccountJsonBase64?.trim();
+  const base64 = normalizeEnvSecret(config.serviceAccountJsonBase64);
   if (base64) {
-    return decodeBase64Credentials(base64);
+    return decodeBase64Credentials(normalizeBase64Input(base64));
   }
 
-  const jsonOrPath = config.serviceAccountJson?.trim();
+  const jsonOrPath = normalizeEnvSecret(config.serviceAccountJson);
   if (!jsonOrPath) {
     throw new GooglePlayCredentialsError(
       GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_NOT_CONFIGURED,
@@ -115,6 +150,10 @@ export function loadGooglePlayServiceAccountCredentials(
 
   if (jsonOrPath.startsWith('{')) {
     return parseCredentialsJson(jsonOrPath);
+  }
+
+  if (looksLikeBase64(jsonOrPath)) {
+    return decodeBase64Credentials(normalizeBase64Input(jsonOrPath));
   }
 
   return readCredentialsFromFile(jsonOrPath);

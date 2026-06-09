@@ -182,11 +182,17 @@ npm run billing:encode-sa -- /path/to/play-service-account.json  # Base64 for Az
 
 ## Azure App Service deploy
 
-Zip deploy uses Oryx only for `npm install` — **not** `nest build` (see `.deployment`: `SCM_DO_BUILD_DURING_DEPLOYMENT=false`). Build locally or in CI before deploy to avoid heap OOM on the server.
+See **[docs/DEPLOY.md](docs/DEPLOY.md)** for startup command, required Application settings, log stream, and troubleshooting.
+
+Zip deploy pre-builds `dist/` locally or in CI, then Oryx runs **`npm ci --omit=dev` only** on the server (see `.deployment`: `CUSTOM_BUILD_COMMAND`). Remote `nest build` is avoided to prevent heap OOM on Basic tier.
+
+**Minimum App Settings to boot:** `MONGODB_URI`, `JWT_SECRET` (≥16 chars), `GOOGLE_CLIENT_ID`, plus `NODE_ENV=production`. Azure injects `PORT=8080` automatically.
+
+**Startup:** default `npm start` runs `node dist/src/main` (compiled output). Do not use `nest start` on the server.
 
 - **VS Code:** copy [`.vscode/settings.json.example`](.vscode/settings.json.example) → `.vscode/settings.json` so deploy runs `npm run build` first and uploads `dist/`.
 - **GitHub Actions:** workflow builds on the runner, then deploys the artifact (no remote rebuild).
-- **Optional App Setting** if remote build is re-enabled: `NODE_OPTIONS` = `--max-old-space-size=2048`.
+- **Logs:** Azure Portal → App Service → **Log stream**; look for `AntySpend API listening on port 8080` or `AntySpend API failed to start:` on env errors.
 
 ## Google Play Console setup
 

@@ -1,2 +1,4 @@
 [config]
+# Production node_modules is bundled in the deploy zip (see .vscode/tasks.json deploy-prep).
+# Skip remote Oryx install — it is unreliable with VS Code zip deploy + zipIgnorePattern.
 SCM_DO_BUILD_DURING_DEPLOYMENT=false

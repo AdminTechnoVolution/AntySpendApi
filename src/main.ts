@@ -57,6 +57,10 @@ async function bootstrap() {
 
   const port = configService.get<number>('port') ?? 3000;
   await app.listen(port);
+  console.log(`AntySpend API listening on port ${port}`);
 }
 
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  console.error('AntySpend API failed to start:', error);
+  process.exit(1);
+});
