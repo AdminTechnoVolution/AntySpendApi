@@ -16,6 +16,7 @@ export const envValidationSchema = Joi.object({
   GOOGLE_CLIENT_ID: Joi.string().required(),
   OPENROUTER_API_KEY: Joi.string().allow('').default(''),
   OPENROUTER_MODEL: Joi.string().default('google/gemini-2.5-flash-lite'),
+  OPENROUTER_VISION_MODEL: Joi.string().default('google/gemini-2.5-flash'),
   EXCHANGE_RATE_API_TOKEN: Joi.string().allow('').default(''),
   ENABLE_SWAGGER: Joi.boolean()
     .truthy('true', '1')
@@ -46,6 +47,7 @@ export type EnvConfig = {
   GOOGLE_CLIENT_ID: string;
   OPENROUTER_API_KEY: string;
   OPENROUTER_MODEL: string;
+  OPENROUTER_VISION_MODEL: string;
   EXCHANGE_RATE_API_TOKEN: string;
   RATE_LIMIT_MAX: number;
   RATE_LIMIT_TTL_MS: number;

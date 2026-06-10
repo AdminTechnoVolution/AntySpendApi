@@ -64,6 +64,7 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `GOOGLE_CLIENT_ID` | Yes | Google OAuth Web Client ID |
 | `OPENROUTER_API_KEY` | For AI | OpenRouter API key |
 | `OPENROUTER_MODEL` | No | Model id (default `google/gemini-2.5-flash-lite`) |
+| `OPENROUTER_VISION_MODEL` | No | Vision model for receipt extraction (default `google/gemini-2.5-flash`) |
 | `EXCHANGE_RATE_API_TOKEN` | For FX | ExchangeRate-API v6 token |
 | `RATE_LIMIT_MAX` | No | Max requests per client per window (default `50`) |
 | `RATE_LIMIT_TTL_MS` | No | Rate limit window in ms (default `60000`) |
@@ -129,6 +130,7 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 
 ### AI (Bearer JWT)
 - `POST /ai/expense-extraction` — `{ text, defaultCurrencyCode?, userLanguage? }`
+- `POST /ai/receipt-extraction` — `{ imageBase64, mimeType, defaultCurrencyCode?, userLanguage?, ocrText? }`
 - `POST /ai/leak-analysis` — `{ month?, userLanguage? }` (loads transactions from Mongo)
 
 ### Exchange rates

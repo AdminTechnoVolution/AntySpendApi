@@ -29,6 +29,8 @@ export default () => ({
   openRouter: {
     apiKey: process.env.OPENROUTER_API_KEY ?? '',
     model: process.env.OPENROUTER_MODEL ?? 'google/gemini-2.5-flash-lite',
+    visionModel:
+      process.env.OPENROUTER_VISION_MODEL ?? 'google/gemini-2.5-flash',
   },
   exchangeRate: {
     apiToken: process.env.EXCHANGE_RATE_API_TOKEN ?? '',

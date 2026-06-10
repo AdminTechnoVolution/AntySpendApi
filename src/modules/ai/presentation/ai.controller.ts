@@ -18,6 +18,7 @@ import { AiService } from '../application/ai.service';
 import {
   ExpenseExtractionRequestDto,
   LeakAnalysisRequestDto,
+  ReceiptExtractionRequestDto,
 } from '../dto/ai.dto';
 
 @ApiTags('ai')
@@ -36,6 +37,17 @@ export class AiController {
     @Body() dto: ExpenseExtractionRequestDto,
   ) {
     return this.aiService.extractExpenses(user.userId, dto);
+  }
+
+  @Post('receipt-extraction')
+  @ApiOperation({ summary: 'Extract expenses from a receipt photo' })
+  @ApiOkResponse({ type: ExpenseExtractionResponseDto })
+  @ApiStandardAuthResponses()
+  extractFromReceipt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ReceiptExtractionRequestDto,
+  ) {
+    return this.aiService.extractFromReceipt(user.userId, dto);
   }
 
   @Post('leak-analysis')

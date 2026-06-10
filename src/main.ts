@@ -1,14 +1,20 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
 import { mongoSanitizeMiddleware } from './shared/security/mongo-sanitize.middleware';
 import { BEARER_AUTH_SCHEME } from './shared/swagger/swagger.constants';
 
+/** Base64 receipt JSON can exceed Express default 100kb (see AiService MAX_RECEIPT_IMAGE_BYTES). */
+const JSON_BODY_LIMIT = '8mb';
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.useBodyParser('json', { limit: JSON_BODY_LIMIT });
+  app.useBodyParser('urlencoded', { limit: JSON_BODY_LIMIT, extended: true });
 
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);

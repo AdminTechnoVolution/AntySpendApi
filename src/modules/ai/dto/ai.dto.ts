@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -25,6 +26,38 @@ export class ExpenseExtractionRequestDto {
   @IsOptional()
   @IsString()
   userLanguage?: string;
+}
+
+export class ReceiptExtractionRequestDto {
+  @ApiProperty({ description: 'Base64-encoded image bytes without a data: URL prefix' })
+  @IsString()
+  @IsNotEmpty()
+  imageBase64!: string;
+
+  @ApiProperty({
+    enum: ['jpeg', 'png', 'webp', 'image/jpeg', 'image/png', 'image/webp'],
+  })
+  @IsString()
+  @IsIn(['jpeg', 'png', 'webp', 'image/jpeg', 'image/png', 'image/webp'])
+  mimeType!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  defaultCurrencyCode?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  userLanguage?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Optional on-device OCR text used as a parsing hint',
+  })
+  @IsOptional()
+  @IsString()
+  ocrText?: string;
 }
 
 export class LeakAnalysisTransactionDto {

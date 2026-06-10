@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { OpenRouterClient } from '../../../shared/openrouter/openrouter.client';
+import { normalizeReceiptImageMimeType, OpenRouterClient } from '../../../shared/openrouter/openrouter.client';
 import {
   EXPENSE_EXTRACTION_JSON_SCHEMA,
   LEAK_ANALYSIS_JSON_SCHEMA,
@@ -12,6 +12,7 @@ import {
 import {
   EXPENSE_EXTRACTION_SYSTEM_PROMPT,
   LEAK_ANALYSIS_SYSTEM_PROMPT,
+  RECEIPT_EXTRACTION_SYSTEM_PROMPT,
 } from '../../../shared/prompts/ai.prompts';
 import { PAYMENT_METHOD_CATALOG } from '../../../shared/constants/catalog.constants';
 import {
@@ -26,11 +27,13 @@ import {
   UserSettings,
   UserSettingsDocument,
 } from '../../../shared/database/entity.schemas';
-import { ExpenseExtractionRequestDto, LeakAnalysisRequestDto } from '../dto/ai.dto';
+import { ExpenseExtractionRequestDto, LeakAnalysisRequestDto, ReceiptExtractionRequestDto } from '../dto/ai.dto';
 
 interface ExpenseExtractionNetworkResult {
   expenses: Array<Record<string, unknown>>;
 }
+
+const MAX_RECEIPT_IMAGE_BYTES = 4 * 1024 * 1024;
 
 interface LeakAnalysisNetworkResult {
   leakScore: number;
@@ -117,6 +120,96 @@ export class AiService {
       'expense_extraction_response',
       EXPENSE_EXTRACTION_JSON_SCHEMA as unknown as Record<string, unknown>,
     );
+
+    if (!result.expenses) {
+      throw new BadRequestException('Invalid AI response');
+    }
+    return result;
+  }
+
+  async extractFromReceipt(
+    userId: string,
+    dto: ReceiptExtractionRequestDto,
+  ): Promise<{
+    expenses: Array<Record<string, unknown>>;
+  }> {
+    const imageBase64 = dto.imageBase64.trim();
+    if (!imageBase64) {
+      throw new BadRequestException('Image is empty');
+    }
+    if (imageBase64.startsWith('data:')) {
+      throw new BadRequestException(
+        'imageBase64 must not include a data: URL prefix',
+      );
+    }
+
+    let imageBytes: Buffer;
+    try {
+      imageBytes = Buffer.from(imageBase64, 'base64');
+    } catch {
+      throw new BadRequestException('imageBase64 is not valid base64');
+    }
+    if (imageBytes.length === 0) {
+      throw new BadRequestException('Image is empty');
+    }
+    if (imageBytes.length > MAX_RECEIPT_IMAGE_BYTES) {
+      throw new BadRequestException(
+        `Image exceeds maximum size of ${MAX_RECEIPT_IMAGE_BYTES} bytes`,
+      );
+    }
+
+    const mimeType = normalizeReceiptImageMimeType(dto.mimeType);
+
+    const [currencies, categories, settings] = await Promise.all([
+      this.currencyModel.find().lean(),
+      this.categoryModel
+        .find({ userId, deletedAtMillis: { $exists: false } })
+        .lean(),
+      this.settingsModel.findOne({ userId }).lean(),
+    ]);
+
+    const defaultCurrencyCode =
+      dto.defaultCurrencyCode ?? settings?.primaryCurrencyCode ?? 'USD';
+    const defaultCurrency = currencies.find((c) => c.code === defaultCurrencyCode);
+
+    const currencyCatalog = currencies.map((c) => ({
+      id: c.code,
+      code: c.code,
+      name: c.displayLabel,
+      aliases: [c.code.toLowerCase(), c.displayLabel.toLowerCase()],
+    }));
+
+    const categoryCatalog = categories.map((c) => ({
+      id: c.id,
+      name: c.customName ?? c.key ?? 'Category',
+      aliases: c.key ? [c.key.replace('category_', '')] : [],
+    }));
+
+    const input = {
+      ocrText: dto.ocrText?.trim() ? dto.ocrText.trim() : null,
+      defaultCurrencyId: defaultCurrency?.code ?? null,
+      catalogs: {
+        currencies: currencyCatalog,
+        categories: categoryCatalog,
+        paymentMethods: PAYMENT_METHOD_CATALOG,
+      },
+      userLanguage: dto.userLanguage ?? settings?.appLanguage ?? null,
+    };
+
+    let systemPrompt = RECEIPT_EXTRACTION_SYSTEM_PROMPT;
+    if (input.userLanguage) {
+      systemPrompt += `\n\n### LANGUAGE REQUIREMENT:\nThe user's phone language is '${input.userLanguage}'. You MUST translate or generate all user-facing text fields (like \`title\` and explanation descriptions inside \`reviewReasons\`) in this language ('${input.userLanguage}').`;
+    }
+
+    const result =
+      await this.openRouter.chatCompletionJsonWithImage<ExpenseExtractionNetworkResult>(
+        systemPrompt,
+        JSON.stringify(input),
+        imageBase64,
+        mimeType,
+        'expense_extraction_response',
+        EXPENSE_EXTRACTION_JSON_SCHEMA as unknown as Record<string, unknown>,
+      );
 
     if (!result.expenses) {
       throw new BadRequestException('Invalid AI response');
