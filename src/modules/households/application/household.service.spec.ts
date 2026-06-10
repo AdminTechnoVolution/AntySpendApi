@@ -317,6 +317,31 @@ describe('HouseholdService', () => {
     });
   });
 
+  describe('createInvite', () => {
+    it('returns a 6-character uppercase alphanumeric token', async () => {
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          householdId,
+          userId: ownerId,
+          role: MEMBER_ROLE.OWNER,
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+      inviteCreate.mockImplementation((data) => ({
+        toObject: () => ({ ...data, id: 'invite-1' }),
+      }));
+
+      const result = await service.createInvite(householdId, ownerId);
+
+      expect(result.token).toMatch(/^[A-Z0-9]{6}$/);
+      expect(inviteCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          token: result.token,
+        }),
+      );
+    });
+  });
+
   describe('acceptInvite', () => {
     const token = 'invite-token-hex';
 
@@ -375,6 +400,55 @@ describe('HouseholdService', () => {
       await expect(
         service.acceptInvite(token, memberId, 'member@example.com'),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('looks up short invite codes case-insensitively', async () => {
+      inviteFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'invite-1',
+          householdId,
+          token: 'K7M2XP',
+          status: INVITE_STATUS.PENDING,
+          expiresAtMillis: Date.now() + 60_000,
+        }),
+      });
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          householdId: 'other-household',
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+
+      await expect(
+        service.acceptInvite('k7m2xp', memberId, 'member@example.com'),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(inviteFindOne).toHaveBeenCalledWith({ token: 'K7M2XP' });
+    });
+
+    it('accepts legacy 32-character hex tokens without changing case', async () => {
+      const legacyToken = 'a1b2c3d4e5f6789012345678901234ab';
+      inviteFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'invite-1',
+          householdId,
+          token: legacyToken,
+          status: INVITE_STATUS.PENDING,
+          expiresAtMillis: Date.now() + 60_000,
+        }),
+      });
+      memberFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          householdId: 'other-household',
+          status: MEMBER_STATUS.ACTIVE,
+        }),
+      });
+
+      await expect(
+        service.acceptInvite(legacyToken, memberId, 'member@example.com'),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(inviteFindOne).toHaveBeenCalledWith({ token: legacyToken });
     });
   });
 

@@ -7,8 +7,8 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { randomBytes } from 'crypto';
 import { newEntityId } from '../../../shared/crud/syncable-crud.service';
+import { generateInviteCode } from './invite-code.generator';
 import {
   DEFAULT_PRIVACY_SETTINGS,
   Household,
@@ -189,24 +189,41 @@ export class HouseholdService {
     await this.assertMemberCapacity(householdId);
 
     const now = Date.now();
-    const token = randomBytes(16).toString('hex');
-    const invite = await this.inviteModel.create({
-      id: newEntityId(),
-      householdId,
-      token,
-      email: email?.toLowerCase(),
-      invitedByUserId: userId,
-      expiresAtMillis: now + INVITE_EXPIRY_MS,
-      status: INVITE_STATUS.PENDING,
-      createdAtMillis: now,
-      updatedAtMillis: now,
-    });
+    const maxAttempts = 5;
 
-    return toPlain(invite.toObject());
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const token = generateInviteCode();
+      try {
+        const invite = await this.inviteModel.create({
+          id: newEntityId(),
+          householdId,
+          token,
+          email: email?.toLowerCase(),
+          invitedByUserId: userId,
+          expiresAtMillis: now + INVITE_EXPIRY_MS,
+          status: INVITE_STATUS.PENDING,
+          createdAtMillis: now,
+          updatedAtMillis: now,
+        });
+
+        return toPlain(invite.toObject());
+      } catch (error) {
+        if (this.isDuplicateKeyError(error) && attempt < maxAttempts - 1) {
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw new ConflictException('INVITE_CODE_GENERATION_FAILED');
   }
 
   async acceptInvite(token: string, userId: string, userEmail: string) {
-    const invite = await this.inviteModel.findOne({ token }).lean();
+    const trimmed = token.trim();
+    const lookupToken = trimmed.length <= 6 ? trimmed.toUpperCase() : trimmed;
+    const invite = await this.inviteModel
+      .findOne({ token: lookupToken })
+      .lean();
     if (!invite) {
       throw new NotFoundException('INVITE_NOT_FOUND');
     }
@@ -373,6 +390,15 @@ export class HouseholdService {
       throw new ForbiddenException('OWNER_ONLY');
     }
     return membership;
+  }
+
+  private isDuplicateKeyError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: number }).code === 11000
+    );
   }
 
   private async assertMemberCapacity(householdId: string) {
