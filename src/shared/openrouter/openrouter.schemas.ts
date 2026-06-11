@@ -132,3 +132,64 @@ export const LEAK_ANALYSIS_JSON_SCHEMA = {
   required: ['leakScore', 'leakSummary', 'detectedLeaks'],
   additionalProperties: false,
 } as const;
+
+export const MONTHLY_REPORT_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    reportSummary: { type: 'string' },
+    monthComparisonSummary: { type: 'string' },
+    spendingChangePercent: { type: 'integer' },
+    topLeaks: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          title: { type: 'string' },
+          amountMajor: { type: 'number' },
+          currencyCode: { type: 'string' },
+          explanation: { type: 'string' },
+          suggestedAction: { type: 'string' },
+        },
+        required: [
+          'title',
+          'amountMajor',
+          'currencyCode',
+          'explanation',
+          'suggestedAction',
+        ],
+        additionalProperties: false,
+      },
+    },
+    budgetRecommendation: {
+      type: 'object',
+      properties: {
+        categoryName: { type: 'string' },
+        suggestedLimitMajor: { type: 'number' },
+        currencyCode: { type: 'string' },
+        rationale: { type: 'string' },
+        createBudgetPrompt: { type: 'string' },
+      },
+      required: [
+        'categoryName',
+        'suggestedLimitMajor',
+        'currencyCode',
+        'rationale',
+        'createBudgetPrompt',
+      ],
+      additionalProperties: false,
+    },
+    highlights: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+  },
+  required: [
+    'reportSummary',
+    'monthComparisonSummary',
+    'spendingChangePercent',
+    'topLeaks',
+    'budgetRecommendation',
+    'highlights',
+  ],
+  additionalProperties: false,
+} as const;

@@ -4,8 +4,16 @@ import { Model } from 'mongoose';
 import {
   Budget,
   BudgetDocument,
+  BudgetMemberQuota,
+  BudgetMemberQuotaDocument,
   Category,
   CategoryDocument,
+  DebtAccount,
+  DebtAccountDocument,
+  ExpenseSplit,
+  ExpenseSplitDocument,
+  ExpenseSplitLine,
+  ExpenseSplitLineDocument,
   Investment,
   InvestmentDocument,
   InvestmentMovement,
@@ -14,6 +22,8 @@ import {
   MerchantDocument,
   RecurringExpense,
   RecurringExpenseDocument,
+  Settlement,
+  SettlementDocument,
   SavingsMovement,
   SavingsMovementDocument,
   SavingsPlan,
@@ -51,8 +61,18 @@ export class AccountDeletionService {
     @InjectModel(Merchant.name) merchantModel: Model<MerchantDocument>,
     @InjectModel(Transaction.name) transactionModel: Model<TransactionDocument>,
     @InjectModel(Budget.name) budgetModel: Model<BudgetDocument>,
+    @InjectModel(BudgetMemberQuota.name)
+    budgetMemberQuotaModel: Model<BudgetMemberQuotaDocument>,
+    @InjectModel(DebtAccount.name)
+    debtAccountModel: Model<DebtAccountDocument>,
+    @InjectModel(ExpenseSplit.name)
+    expenseSplitModel: Model<ExpenseSplitDocument>,
+    @InjectModel(ExpenseSplitLine.name)
+    expenseSplitLineModel: Model<ExpenseSplitLineDocument>,
     @InjectModel(RecurringExpense.name)
     recurringModel: Model<RecurringExpenseDocument>,
+    @InjectModel(Settlement.name)
+    settlementModel: Model<SettlementDocument>,
     @InjectModel(SavingsPlan.name) savingsPlanModel: Model<SavingsPlanDocument>,
     @InjectModel(SavingsMovement.name)
     savingsMovementModel: Model<SavingsMovementDocument>,
@@ -72,7 +92,12 @@ export class AccountDeletionService {
       merchantModel as unknown as EntityModel,
       transactionModel as unknown as EntityModel,
       budgetModel as unknown as EntityModel,
+      budgetMemberQuotaModel as unknown as EntityModel,
+      debtAccountModel as unknown as EntityModel,
+      expenseSplitModel as unknown as EntityModel,
+      expenseSplitLineModel as unknown as EntityModel,
       recurringModel as unknown as EntityModel,
+      settlementModel as unknown as EntityModel,
       savingsPlanModel as unknown as EntityModel,
       savingsMovementModel as unknown as EntityModel,
       investmentModel as unknown as EntityModel,

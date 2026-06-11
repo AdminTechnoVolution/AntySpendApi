@@ -13,12 +13,20 @@ import {
 import {
   Budget,
   BudgetSchema,
+  BudgetMemberQuota,
+  BudgetMemberQuotaSchema,
   Category,
   CategorySchema,
+  ExpenseSplit,
+  ExpenseSplitSchema,
+  ExpenseSplitLine,
+  ExpenseSplitLineSchema,
   Investment,
   InvestmentMovement,
   InvestmentMovementSchema,
   InvestmentSchema,
+  Settlement,
+  SettlementSchema,
   Transaction,
   TransactionSchema,
   SavingsMovement,
@@ -34,6 +42,7 @@ import { HouseholdAuthzService } from './application/household-authz.service';
 import { FamilyViewService } from './application/family-view.service';
 import { EntitlementsService } from './application/entitlements.service';
 import { PlayBillingVerificationService } from './application/play-billing-verification.service';
+import { HouseholdFamilyService } from './application/household-family.service';
 import { HouseholdsController } from './presentation/households.controller';
 import { EntitlementsController } from './presentation/entitlements.controller';
 
@@ -51,6 +60,10 @@ import { EntitlementsController } from './presentation/entitlements.controller';
       { name: InvestmentMovement.name, schema: InvestmentMovementSchema },
       { name: Category.name, schema: CategorySchema },
       { name: Budget.name, schema: BudgetSchema },
+      { name: ExpenseSplit.name, schema: ExpenseSplitSchema },
+      { name: ExpenseSplitLine.name, schema: ExpenseSplitLineSchema },
+      { name: Settlement.name, schema: SettlementSchema },
+      { name: BudgetMemberQuota.name, schema: BudgetMemberQuotaSchema },
       { name: SavingsPlan.name, schema: SavingsPlanSchema },
       { name: SavingsMovement.name, schema: SavingsMovementSchema },
     ]),
@@ -60,6 +73,7 @@ import { EntitlementsController } from './presentation/entitlements.controller';
     HouseholdService,
     HouseholdAuthzService,
     FamilyViewService,
+    HouseholdFamilyService,
     PlayBillingVerificationService,
     EntitlementsService,
   ],

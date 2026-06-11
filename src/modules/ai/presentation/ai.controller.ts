@@ -11,6 +11,7 @@ import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interfa
 import {
   ExpenseExtractionResponseDto,
   LeakAnalysisResponseDto,
+  MonthlyReportResponseDto,
 } from '../../../shared/swagger/ai-response.dto';
 import { ApiStandardAuthResponses } from '../../../shared/swagger/common-responses.decorator';
 import { BEARER_AUTH_SCHEME } from '../../../shared/swagger/swagger.constants';
@@ -18,6 +19,7 @@ import { AiService } from '../application/ai.service';
 import {
   ExpenseExtractionRequestDto,
   LeakAnalysisRequestDto,
+  MonthlyReportRequestDto,
   ReceiptExtractionRequestDto,
 } from '../dto/ai.dto';
 
@@ -59,5 +61,16 @@ export class AiController {
     @Body() dto: LeakAnalysisRequestDto,
   ) {
     return this.aiService.analyzeLeaks(user.userId, dto);
+  }
+
+  @Post('monthly-report')
+  @ApiOperation({ summary: 'Generate structured monthly AI money mentor report' })
+  @ApiOkResponse({ type: MonthlyReportResponseDto })
+  @ApiStandardAuthResponses()
+  generateMonthlyReport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: MonthlyReportRequestDto,
+  ) {
+    return this.aiService.generateMonthlyReport(user.userId, dto);
   }
 }

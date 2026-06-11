@@ -47,3 +47,63 @@ export class LeakAnalysisResponseDto {
   @ApiPropertyOptional()
   auditSummary?: string;
 }
+
+export class MonthlyReportLeakDto {
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty()
+  amountMajor!: number;
+
+  @ApiProperty()
+  currencyCode!: string;
+
+  @ApiProperty()
+  explanation!: string;
+
+  @ApiProperty()
+  suggestedAction!: string;
+}
+
+export class MonthlyReportBudgetRecommendationDto {
+  @ApiProperty()
+  categoryName!: string;
+
+  @ApiProperty()
+  suggestedLimitMajor!: number;
+
+  @ApiProperty()
+  currencyCode!: string;
+
+  @ApiProperty()
+  rationale!: string;
+
+  @ApiProperty()
+  createBudgetPrompt!: string;
+}
+
+export class MonthlyReportResponseDto {
+  @ApiProperty({ example: '2026-05' })
+  month!: string;
+
+  @ApiProperty({ example: '2026-04' })
+  previousMonth!: string;
+
+  @ApiProperty()
+  reportSummary!: string;
+
+  @ApiProperty()
+  monthComparisonSummary!: string;
+
+  @ApiProperty()
+  spendingChangePercent!: number;
+
+  @ApiProperty({ type: [MonthlyReportLeakDto] })
+  topLeaks!: MonthlyReportLeakDto[];
+
+  @ApiProperty({ type: MonthlyReportBudgetRecommendationDto })
+  budgetRecommendation!: MonthlyReportBudgetRecommendationDto;
+
+  @ApiProperty({ type: [String] })
+  highlights!: string[];
+}

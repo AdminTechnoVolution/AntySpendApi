@@ -13,7 +13,12 @@ describe('AccountDeletionService', () => {
   const merchantModel = makeModel();
   const transactionModel = makeModel();
   const budgetModel = makeModel();
+  const budgetMemberQuotaModel = makeModel();
+  const debtAccountModel = makeModel();
+  const expenseSplitModel = makeModel();
+  const expenseSplitLineModel = makeModel();
   const recurringModel = makeModel();
+  const settlementModel = makeModel();
   const savingsPlanModel = makeModel();
   const savingsMovementModel = makeModel();
   const investmentModel = makeModel();
@@ -35,7 +40,12 @@ describe('AccountDeletionService', () => {
       merchantModel as never,
       transactionModel as never,
       budgetModel as never,
+      budgetMemberQuotaModel as never,
+      debtAccountModel as never,
+      expenseSplitModel as never,
+      expenseSplitLineModel as never,
       recurringModel as never,
+      settlementModel as never,
       savingsPlanModel as never,
       savingsMovementModel as never,
       investmentModel as never,
@@ -58,7 +68,12 @@ describe('AccountDeletionService', () => {
       merchantModel,
       transactionModel,
       budgetModel,
+      budgetMemberQuotaModel,
+      debtAccountModel,
+      expenseSplitModel,
+      expenseSplitLineModel,
       recurringModel,
+      settlementModel,
       savingsPlanModel,
       savingsMovementModel,
       investmentModel,

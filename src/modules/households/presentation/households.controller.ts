@@ -6,6 +6,8 @@ import {
   Param,
   Patch,
   Post,
+  Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -28,6 +30,14 @@ import {
 } from '../dto/household.dto';
 import { HouseholdService } from '../application/household.service';
 import { FamilyViewService } from '../application/family-view.service';
+import { HouseholdFamilyService } from '../application/household-family.service';
+import { IdempotencyKey } from '../../../shared/crud/idempotency-key.decorator';
+import {
+  CreateExpenseSplitDto,
+  CreateSettlementDto,
+  ReplaceBudgetQuotasDto,
+  UpdateExpenseSplitDto,
+} from '../dto/household-family.dto';
 
 @ApiTags('households')
 @ApiBearerAuth(BEARER_AUTH_SCHEME)
@@ -37,6 +47,7 @@ export class HouseholdsController {
   constructor(
     private readonly householdService: HouseholdService,
     private readonly familyViewService: FamilyViewService,
+    private readonly householdFamilyService: HouseholdFamilyService,
   ) {}
 
   @Get('me')
@@ -154,5 +165,103 @@ export class HouseholdsController {
     @Param('id', ParseEntityIdPipe) id: string,
   ) {
     return this.familyViewService.getFamilyView(id, user.userId);
+  }
+
+  @Get(':id/splits')
+  @ApiOperation({ summary: 'List household expense splits' })
+  @ApiOkResponse({ description: 'Expense splits with lines' })
+  @ApiStandardAuthResponses()
+  listSplits(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Query('status') status?: string,
+  ) {
+    return this.householdFamilyService.listSplits(user.userId, id, status);
+  }
+
+  @Post(':id/splits')
+  @ApiOperation({ summary: 'Create an expense split with lines' })
+  @ApiOkResponse({ description: 'Created split' })
+  @ApiStandardAuthResponses()
+  createSplit(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Body() body: CreateExpenseSplitDto,
+    @IdempotencyKey() idempotencyKey?: string,
+  ) {
+    return this.householdFamilyService.createSplit(user.userId, id, body, idempotencyKey);
+  }
+
+  @Patch(':id/splits/:splitId')
+  @ApiOperation({ summary: 'Update split status or note' })
+  @ApiOkResponse({ description: 'Updated split' })
+  @ApiStandardAuthResponses()
+  updateSplit(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Param('splitId', ParseEntityIdPipe) splitId: string,
+    @Body() body: UpdateExpenseSplitDto,
+  ) {
+    return this.householdFamilyService.updateSplit(user.userId, id, splitId, body);
+  }
+
+  @Post(':id/settlements')
+  @ApiOperation({ summary: 'Record a settlement between members' })
+  @ApiOkResponse({ description: 'Created settlement' })
+  @ApiStandardAuthResponses()
+  createSettlement(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Body() body: CreateSettlementDto,
+    @IdempotencyKey() idempotencyKey?: string,
+  ) {
+    return this.householdFamilyService.createSettlement(user.userId, id, body, idempotencyKey);
+  }
+
+  @Get(':id/settlements')
+  @ApiOperation({ summary: 'List household settlements' })
+  @ApiOkResponse({ description: 'Settlement history' })
+  @ApiStandardAuthResponses()
+  listSettlements(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+  ) {
+    return this.householdFamilyService.listSettlements(user.userId, id);
+  }
+
+  @Get(':id/balances')
+  @ApiOperation({ summary: 'Net balances between household members' })
+  @ApiOkResponse({ description: 'Member net balances' })
+  @ApiStandardAuthResponses()
+  getBalances(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+  ) {
+    return this.householdFamilyService.getBalances(user.userId, id);
+  }
+
+  @Put(':id/budgets/:budgetId/quotas')
+  @ApiOperation({ summary: 'Replace member quotas for a household budget (owner only)' })
+  @ApiOkResponse({ description: 'Updated quotas' })
+  @ApiStandardAuthResponses()
+  replaceBudgetQuotas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Param('budgetId', ParseEntityIdPipe) budgetId: string,
+    @Body() body: ReplaceBudgetQuotasDto,
+  ) {
+    return this.householdFamilyService.replaceBudgetQuotas(user.userId, id, budgetId, body);
+  }
+
+  @Get(':id/budgets/:budgetId/quotas')
+  @ApiOperation({ summary: 'Read member quotas for a household budget' })
+  @ApiOkResponse({ description: 'Budget member quotas' })
+  @ApiStandardAuthResponses()
+  listBudgetQuotas(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseEntityIdPipe) id: string,
+    @Param('budgetId', ParseEntityIdPipe) budgetId: string,
+  ) {
+    return this.householdFamilyService.listBudgetQuotas(user.userId, id, budgetId);
   }
 }

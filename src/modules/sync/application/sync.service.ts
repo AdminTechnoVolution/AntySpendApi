@@ -20,6 +20,16 @@ import {
   InvestmentDocument,
   InvestmentMovement,
   InvestmentMovementDocument,
+  ExpenseSplit,
+  ExpenseSplitDocument,
+  ExpenseSplitLine,
+  ExpenseSplitLineDocument,
+  Settlement,
+  SettlementDocument,
+  BudgetMemberQuota,
+  BudgetMemberQuotaDocument,
+  DebtAccount,
+  DebtAccountDocument,
   Merchant,
   MerchantDocument,
   RecurringExpense,
@@ -60,6 +70,16 @@ export class SyncService {
     @InjectModel(Investment.name) investmentModel: Model<InvestmentDocument>,
     @InjectModel(InvestmentMovement.name)
     investmentMovementModel: Model<InvestmentMovementDocument>,
+    @InjectModel(ExpenseSplit.name)
+    expenseSplitModel: Model<ExpenseSplitDocument>,
+    @InjectModel(ExpenseSplitLine.name)
+    expenseSplitLineModel: Model<ExpenseSplitLineDocument>,
+    @InjectModel(Settlement.name)
+    settlementModel: Model<SettlementDocument>,
+    @InjectModel(BudgetMemberQuota.name)
+    budgetMemberQuotaModel: Model<BudgetMemberQuotaDocument>,
+    @InjectModel(DebtAccount.name)
+    debtAccountModel: Model<DebtAccountDocument>,
     private readonly lwwService: LwwService,
     private readonly householdAuthz: HouseholdAuthzService,
   ) {
@@ -75,10 +95,18 @@ export class SyncService {
       savings_movements: savingsMovementModel as unknown as EntityModel,
       investments: investmentModel as unknown as EntityModel,
       investment_movements: investmentMovementModel as unknown as EntityModel,
+      expense_splits: expenseSplitModel as unknown as EntityModel,
+      expense_split_lines: expenseSplitLineModel as unknown as EntityModel,
+      settlements: settlementModel as unknown as EntityModel,
+      budget_member_quotas: budgetMemberQuotaModel as unknown as EntityModel,
+      debt_accounts: debtAccountModel as unknown as EntityModel,
     };
   }
 
-  async push(userId: string, request: SyncPushRequest): Promise<SyncPushResult> {
+  async push(
+    userId: string,
+    request: SyncPushRequest,
+  ): Promise<SyncPushResult> {
     const accepted: string[] = [];
     const rejected: Array<{ entityId: string; reason: string }> = [];
     const noop: string[] = [];
@@ -88,7 +116,10 @@ export class SyncService {
     for (const change of request.changes ?? []) {
       try {
         if (!SYNC_ENTITY_TYPES.includes(change.entityType)) {
-          rejected.push({ entityId: change.entityId, reason: 'UNKNOWN_ENTITY' });
+          rejected.push({
+            entityId: change.entityId,
+            reason: 'UNKNOWN_ENTITY',
+          });
           continue;
         }
 
@@ -104,9 +135,9 @@ export class SyncService {
           provisionalHouseholdId,
         );
 
-        const existing = (await model.findOne(provisionalFilter).lean()) as
-          | Record<string, unknown>
-          | null;
+        const existing = (await model
+          .findOne(provisionalFilter)
+          .lean()) as Record<string, unknown> | null;
 
         const authz = await this.householdAuthz.authorizeSyncChange(
           userId,
@@ -128,7 +159,10 @@ export class SyncService {
 
         const existingDoc =
           existing ??
-          ((await model.findOne(filter).lean()) as Record<string, unknown> | null);
+          ((await model.findOne(filter).lean()) as Record<
+            string,
+            unknown
+          > | null);
 
         const decision = this.lwwService.decide(
           change,
@@ -207,7 +241,8 @@ export class SyncService {
           fanOutHouseholdIds.add(householdId);
         }
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'UPSERT_FAILED';
+        const message =
+          error instanceof Error ? error.message : 'UPSERT_FAILED';
         this.logger.warn(
           `Sync push failed for ${change.entityType}/${change.entityId}: ${message}`,
         );

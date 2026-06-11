@@ -8,10 +8,12 @@ import { normalizeReceiptImageMimeType, OpenRouterClient } from '../../../shared
 import {
   EXPENSE_EXTRACTION_JSON_SCHEMA,
   LEAK_ANALYSIS_JSON_SCHEMA,
+  MONTHLY_REPORT_JSON_SCHEMA,
 } from '../../../shared/openrouter/openrouter.schemas';
 import {
   EXPENSE_EXTRACTION_SYSTEM_PROMPT,
   LEAK_ANALYSIS_SYSTEM_PROMPT,
+  MONTHLY_REPORT_SYSTEM_PROMPT,
   RECEIPT_EXTRACTION_SYSTEM_PROMPT,
 } from '../../../shared/prompts/ai.prompts';
 import { PAYMENT_METHOD_CATALOG } from '../../../shared/constants/catalog.constants';
@@ -27,7 +29,7 @@ import {
   UserSettings,
   UserSettingsDocument,
 } from '../../../shared/database/entity.schemas';
-import { ExpenseExtractionRequestDto, LeakAnalysisRequestDto, ReceiptExtractionRequestDto } from '../dto/ai.dto';
+import { ExpenseExtractionRequestDto, LeakAnalysisRequestDto, MonthlyReportRequestDto, ReceiptExtractionRequestDto } from '../dto/ai.dto';
 
 interface ExpenseExtractionNetworkResult {
   expenses: Array<Record<string, unknown>>;
@@ -48,6 +50,27 @@ interface LeakAnalysisNetworkResult {
     severity: string;
     associatedTransactionIds: number[];
   }>;
+}
+
+interface MonthlyReportNetworkResult {
+  reportSummary: string;
+  monthComparisonSummary: string;
+  spendingChangePercent: number;
+  topLeaks: Array<{
+    title: string;
+    amountMajor: number;
+    currencyCode: string;
+    explanation: string;
+    suggestedAction: string;
+  }>;
+  budgetRecommendation: {
+    categoryName: string;
+    suggestedLimitMajor: number;
+    currencyCode: string;
+    rationale: string;
+    createBudgetPrompt: string;
+  };
+  highlights: string[];
 }
 
 @Injectable()
@@ -367,6 +390,208 @@ export class AiService {
       auditSummary: network.leakSummary,
       leakScore: network.leakScore,
     };
+  }
+
+  async generateMonthlyReport(userId: string, dto: MonthlyReportRequestDto): Promise<{
+    month: string;
+    previousMonth: string;
+    reportSummary: string;
+    monthComparisonSummary: string;
+    spendingChangePercent: number;
+    topLeaks: Array<Record<string, unknown>>;
+    budgetRecommendation: Record<string, unknown>;
+    highlights: string[];
+  }> {
+    const settings = await this.settingsModel.findOne({ userId }).lean();
+    const primaryCurrencyCode =
+      dto.primaryCurrencyCode ?? settings?.primaryCurrencyCode ?? 'USD';
+    const { month, previousMonth, startMillis, endMillis } =
+      this.resolveReportMonths(dto.month);
+
+    let currentSummary = dto.currentMonthSummary;
+    let previousSummary = dto.previousMonthSummary;
+    let minimalTransactions = dto.transactions ?? [];
+    let minimalRecurring = dto.recurringExpenses ?? [];
+    let budgets = dto.budgets ?? [];
+
+    if (!currentSummary || minimalTransactions.length === 0) {
+      const [transactions, recurringExpenses, categories] = await Promise.all([
+        this.transactionModel
+          .find({
+            userId,
+            deletedAtMillis: { $exists: false },
+            occurredAtMillis: { $gte: startMillis, $lt: endMillis },
+          })
+          .lean(),
+        this.recurringModel
+          .find({ userId, deletedAtMillis: { $exists: false }, isActive: true })
+          .lean(),
+        this.categoryModel
+          .find({ userId, deletedAtMillis: { $exists: false } })
+          .lean(),
+      ]);
+
+      if (transactions.length === 0) {
+        throw new BadRequestException('No transactions for report month');
+      }
+
+      const categoryMap = new Map(categories.map((c) => [c.id, c]));
+      const now = Date.now();
+      minimalTransactions = transactions.map((t) => {
+        const cat = t.categoryId ? categoryMap.get(t.categoryId) : undefined;
+        const daysAgo = Math.floor((now - t.occurredAtMillis) / (24 * 60 * 60 * 1000));
+        return {
+          id: parseInt(t.id.slice(0, 8), 16) % 1000000,
+          title: t.title ?? 'Transaction',
+          amount: t.primaryAmountMinor / 100,
+          currencyCode: t.primaryCurrencyCode,
+          categoryName: cat?.customName ?? cat?.key ?? 'Other',
+          daysAgo,
+          occurredAtMillis: t.occurredAtMillis,
+        };
+      });
+      minimalRecurring = recurringExpenses.map((r) => {
+        const cat = r.categoryId ? categoryMap.get(r.categoryId) : undefined;
+        return {
+          id: parseInt(r.id.slice(0, 8), 16) % 1000000,
+          title: r.title,
+          amount: r.amountMinor / 100,
+          currencyCode: r.currencyCode,
+          categoryName: cat?.customName ?? cat?.key ?? 'Other',
+          frequency: r.frequency,
+          isActive: r.isActive,
+        };
+      });
+      currentSummary = this.buildMonthSummaryFromTransactions(
+        transactions,
+        categoryMap,
+        primaryCurrencyCode,
+      );
+      const prevRange = this.monthRangeFor(previousMonth);
+      const prevTransactions = await this.transactionModel
+        .find({
+          userId,
+          deletedAtMillis: { $exists: false },
+          occurredAtMillis: { $gte: prevRange.startMillis, $lt: prevRange.endMillis },
+        })
+        .lean();
+      previousSummary = this.buildMonthSummaryFromTransactions(
+        prevTransactions,
+        categoryMap,
+        primaryCurrencyCode,
+      );
+      if (budgets.length === 0) {
+        budgets = [];
+      }
+    }
+
+    const input = {
+      month,
+      previousMonth,
+      primaryCurrencyCode,
+      currentMonthSummary: currentSummary,
+      previousMonthSummary: previousSummary,
+      transactions: minimalTransactions,
+      recurringExpenses: minimalRecurring,
+      budgets,
+      userLanguage: dto.userLanguage ?? settings?.appLanguage ?? null,
+    };
+
+    let systemPrompt = MONTHLY_REPORT_SYSTEM_PROMPT;
+    if (input.userLanguage) {
+      systemPrompt += `\n\n### LANGUAGE REQUIREMENT:\nThe user's preferred language is '${input.userLanguage}'. You MUST generate all user-facing text fields in this language.`;
+    }
+
+    const network = await this.openRouter.chatCompletionJson<MonthlyReportNetworkResult>(
+      systemPrompt,
+      JSON.stringify(input),
+      'monthly_report_response',
+      MONTHLY_REPORT_JSON_SCHEMA as unknown as Record<string, unknown>,
+    );
+
+    return {
+      month,
+      previousMonth,
+      reportSummary: network.reportSummary,
+      monthComparisonSummary: network.monthComparisonSummary,
+      spendingChangePercent: network.spendingChangePercent,
+      topLeaks: (network.topLeaks ?? []).slice(0, 3).map((leak) => ({
+        title: leak.title,
+        amountMajor: leak.amountMajor,
+        currencyCode: leak.currencyCode,
+        explanation: leak.explanation,
+        suggestedAction: leak.suggestedAction,
+      })),
+      budgetRecommendation: network.budgetRecommendation,
+      highlights: network.highlights ?? [],
+    };
+  }
+
+  private buildMonthSummaryFromTransactions(
+    transactions: Array<{ type?: string; primaryAmountMinor: number; categoryId?: string }>,
+    categoryMap: Map<string, { customName?: string; key?: string }>,
+    currencyCode: string,
+  ) {
+    let totalExpense = 0;
+    let totalIncome = 0;
+    const byCategory = new Map<string, number>();
+    for (const t of transactions) {
+      const amount = t.primaryAmountMinor / 100;
+      const txType = (t.type ?? 'EXPENSE').toUpperCase();
+      if (txType === 'INCOME') {
+        totalIncome += amount;
+      } else if (txType === 'EXPENSE') {
+        totalExpense += amount;
+        const cat = t.categoryId ? categoryMap.get(t.categoryId) : undefined;
+        const name = cat?.customName ?? cat?.key ?? 'Other';
+        byCategory.set(name, (byCategory.get(name) ?? 0) + amount);
+      }
+    }
+    const topCategories = [...byCategory.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([categoryName, amountMajor]) => ({ categoryName, amountMajor }));
+    return {
+      totalExpenseMajor: totalExpense,
+      totalIncomeMajor: totalIncome,
+      currencyCode,
+      topCategories,
+    };
+  }
+
+  private resolveReportMonths(month?: string) {
+    const now = new Date();
+    let year = now.getUTCFullYear();
+    let mon = now.getUTCMonth();
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const [y, m] = month.split('-').map(Number);
+      year = y;
+      mon = m - 1;
+    } else {
+      // Default: previous calendar month
+      const prev = new Date(Date.UTC(year, mon, 1));
+      prev.setUTCMonth(prev.getUTCMonth() - 1);
+      year = prev.getUTCFullYear();
+      mon = prev.getUTCMonth();
+    }
+    const monthStr = `${year}-${String(mon + 1).padStart(2, '0')}`;
+    const prevDate = new Date(Date.UTC(year, mon, 1));
+    prevDate.setUTCMonth(prevDate.getUTCMonth() - 1);
+    const previousMonth = `${prevDate.getUTCFullYear()}-${String(prevDate.getUTCMonth() + 1).padStart(2, '0')}`;
+    const range = this.monthRangeFor(monthStr);
+    return {
+      month: monthStr,
+      previousMonth,
+      startMillis: range.startMillis,
+      endMillis: range.endMillis,
+    };
+  }
+
+  private monthRangeFor(month: string) {
+    const [y, m] = month.split('-').map(Number);
+    const start = Date.UTC(y, m - 1, 1);
+    const end = Date.UTC(y, m, 1);
+    return { startMillis: start, endMillis: end };
   }
 
   private resolveMonthRange(month?: string) {

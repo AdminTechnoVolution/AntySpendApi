@@ -1,6 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
-import { SyncableEntity, syncableIndexes, householdShareableIndexes } from '../../shared/sync/syncable.schema';
+import {
+  SyncableEntity,
+  syncableIndexes,
+  householdShareableIndexes,
+} from '../../shared/sync/syncable.schema';
 
 @Schema({ collection: 'user_settings', strict: true })
 export class UserSettings extends SyncableEntity {
@@ -235,6 +239,129 @@ export type BudgetDocument = HydratedDocument<Budget>;
 export const BudgetSchema = SchemaFactory.createForClass(Budget);
 syncableIndexes(BudgetSchema);
 householdShareableIndexes(BudgetSchema);
+
+@Schema({ collection: 'expense_splits' })
+export class ExpenseSplit extends SyncableEntity {
+  @Prop({ required: true })
+  transactionId!: string;
+
+  @Prop({ required: true })
+  paidByUserId!: string;
+
+  @Prop({ required: true })
+  splitMethod!: string;
+
+  @Prop({ required: true })
+  totalAmountMinor!: number;
+
+  @Prop({ required: true })
+  currencyCode!: string;
+
+  @Prop()
+  note?: string;
+
+  @Prop({ required: true, default: 'OPEN' })
+  status!: string;
+}
+
+export type ExpenseSplitDocument = HydratedDocument<ExpenseSplit>;
+export const ExpenseSplitSchema = SchemaFactory.createForClass(ExpenseSplit);
+syncableIndexes(ExpenseSplitSchema);
+householdShareableIndexes(ExpenseSplitSchema);
+
+@Schema({ collection: 'expense_split_lines' })
+export class ExpenseSplitLine extends SyncableEntity {
+  @Prop({ required: true })
+  expenseSplitId!: string;
+
+  @Prop({ required: true })
+  participantUserId!: string;
+
+  @Prop({ required: true })
+  owedAmountMinor!: number;
+}
+
+export type ExpenseSplitLineDocument = HydratedDocument<ExpenseSplitLine>;
+export const ExpenseSplitLineSchema =
+  SchemaFactory.createForClass(ExpenseSplitLine);
+syncableIndexes(ExpenseSplitLineSchema);
+householdShareableIndexes(ExpenseSplitLineSchema);
+
+@Schema({ collection: 'settlements' })
+export class Settlement extends SyncableEntity {
+  @Prop({ required: true })
+  fromUserId!: string;
+
+  @Prop({ required: true })
+  toUserId!: string;
+
+  @Prop({ required: true })
+  amountMinor!: number;
+
+  @Prop({ required: true })
+  currencyCode!: string;
+
+  @Prop()
+  linkedTransactionId?: string;
+
+  @Prop()
+  note?: string;
+
+  @Prop({ required: true })
+  settledAtMillis!: number;
+}
+
+export type SettlementDocument = HydratedDocument<Settlement>;
+export const SettlementSchema = SchemaFactory.createForClass(Settlement);
+syncableIndexes(SettlementSchema);
+householdShareableIndexes(SettlementSchema);
+
+@Schema({ collection: 'budget_member_quotas' })
+export class BudgetMemberQuota extends SyncableEntity {
+  @Prop({ required: true })
+  budgetId!: string;
+
+  @Prop({ required: true })
+  memberUserId!: string;
+
+  @Prop({ required: true })
+  quotaPercent!: number;
+}
+
+export type BudgetMemberQuotaDocument = HydratedDocument<BudgetMemberQuota>;
+export const BudgetMemberQuotaSchema =
+  SchemaFactory.createForClass(BudgetMemberQuota);
+syncableIndexes(BudgetMemberQuotaSchema);
+householdShareableIndexes(BudgetMemberQuotaSchema);
+
+@Schema({ collection: 'debt_accounts' })
+export class DebtAccount extends SyncableEntity {
+  @Prop({ required: true })
+  name!: string;
+
+  @Prop({ required: true })
+  balanceAmountMinor!: number;
+
+  @Prop({ required: true })
+  currencyCode!: string;
+
+  @Prop({ required: true })
+  annualInterestRateBps!: number;
+
+  @Prop({ required: true })
+  minimumPaymentMinor!: number;
+
+  @Prop()
+  recurringExpenseId?: string;
+
+  @Prop({ required: true, default: true })
+  isActive!: boolean;
+}
+
+export type DebtAccountDocument = HydratedDocument<DebtAccount>;
+export const DebtAccountSchema = SchemaFactory.createForClass(DebtAccount);
+syncableIndexes(DebtAccountSchema);
+householdShareableIndexes(DebtAccountSchema);
 
 @Schema({ collection: 'recurring_expenses' })
 export class RecurringExpense extends SyncableEntity {
@@ -478,9 +605,8 @@ export class ExchangeRateSnapshot {
 
 export type ExchangeRateSnapshotDocument =
   HydratedDocument<ExchangeRateSnapshot>;
-export const ExchangeRateSnapshotSchema = SchemaFactory.createForClass(
-  ExchangeRateSnapshot,
-);
+export const ExchangeRateSnapshotSchema =
+  SchemaFactory.createForClass(ExchangeRateSnapshot);
 ExchangeRateSnapshotSchema.index(
   { baseCurrency: 1, snapshotDate: 1 },
   { unique: true },

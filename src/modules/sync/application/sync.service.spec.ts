@@ -20,12 +20,16 @@ describe('SyncService push idempotency', () => {
 
   const householdAuthz = {
     resolveHouseholdId: jest.fn().mockReturnValue(undefined),
-    buildEntityFilter: jest.fn((userId: string, change: { entityId: string }) => ({
-      userId,
-      id: change.entityId,
-      householdId: { $exists: false },
-    })),
-    authorizeSyncChange: jest.fn().mockResolvedValue({ allowed: true, isOwner: false }),
+    buildEntityFilter: jest.fn(
+      (userId: string, change: { entityId: string }) => ({
+        userId,
+        id: change.entityId,
+        householdId: { $exists: false },
+      }),
+    ),
+    authorizeSyncChange: jest
+      .fn()
+      .mockResolvedValue({ allowed: true, isOwner: false }),
     getActiveHouseholdId: jest.fn().mockResolvedValue(null),
     getActiveMemberUserIds: jest.fn().mockResolvedValue([]),
     buildPrivatePullFilter: jest.fn((userId: string) => ({
@@ -37,6 +41,11 @@ describe('SyncService push idempotency', () => {
   } as unknown as HouseholdAuthzService;
 
   const service = new SyncService(
+    model as never,
+    model as never,
+    model as never,
+    model as never,
+    model as never,
     model as never,
     model as never,
     model as never,
@@ -69,24 +78,28 @@ describe('SyncService push idempotency', () => {
   });
 
   it('returns noop for duplicate push without mutating or bumping version', async () => {
-    findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({
-      id: WALLET_ID,
-      updatedAtMillis: 1000,
-      deviceId: 'device-a',
-    }) });
+    findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({
+        id: WALLET_ID,
+        updatedAtMillis: 1000,
+        deviceId: 'device-a',
+      }),
+    });
     (lwwService.decide as jest.Mock).mockReturnValue({
       outcome: 'noop',
       reason: 'ALREADY_APPLIED',
     });
 
     const result = await service.push('user-1', {
-      changes: [{
-        entityType: 'wallets',
-        entityId: WALLET_ID,
-        updatedAtMillis: 1000,
-        deviceId: 'device-a',
-        payload: { name: 'Cash' },
-      }],
+      changes: [
+        {
+          entityType: 'wallets',
+          entityId: WALLET_ID,
+          updatedAtMillis: 1000,
+          deviceId: 'device-a',
+          payload: { name: 'Cash' },
+        },
+      ],
       deviceId: 'device-a',
     });
 
@@ -104,22 +117,26 @@ describe('SyncService push idempotency', () => {
     findOneAndUpdate.mockResolvedValue({});
 
     const result = await service.push('user-1', {
-      changes: [{
-        entityType: 'wallets',
-        entityId: WALLET_ID,
-        updatedAtMillis: 1000,
-        payload: {
-          name: 'Cash',
-          createdAtMillis: 900,
+      changes: [
+        {
+          entityType: 'wallets',
+          entityId: WALLET_ID,
+          updatedAtMillis: 1000,
+          payload: {
+            name: 'Cash',
+            createdAtMillis: 900,
+          },
         },
-      }],
+      ],
     });
 
     expect(result.accepted).toEqual([WALLET_ID]);
     expect(findOneAndUpdate).toHaveBeenCalledWith(
       { userId: 'user-1', id: WALLET_ID, householdId: { $exists: false } },
       expect.objectContaining({
-        $set: expect.not.objectContaining({ createdAtMillis: expect.anything() }),
+        $set: expect.not.objectContaining({
+          createdAtMillis: expect.anything(),
+        }),
         $setOnInsert: expect.objectContaining({ createdAtMillis: 900 }),
       }),
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
@@ -133,17 +150,19 @@ describe('SyncService push idempotency', () => {
     findOneAndUpdate.mockResolvedValue({});
 
     await service.push('user-1', {
-      changes: [{
-        entityType: 'wallets',
-        entityId: WALLET_ID,
-        updatedAtMillis: 1000,
-        payload: {
-          name: 'Cash',
-          $gt: '',
-          'nested.bad': 1,
-          meta: { $where: 'true', ok: true },
+      changes: [
+        {
+          entityType: 'wallets',
+          entityId: WALLET_ID,
+          updatedAtMillis: 1000,
+          payload: {
+            name: 'Cash',
+            $gt: '',
+            'nested.bad': 1,
+            meta: { $where: 'true', ok: true },
+          },
         },
-      }],
+      ],
     });
 
     expect(findOneAndUpdate).toHaveBeenCalledWith(
@@ -166,19 +185,23 @@ describe('SyncService push idempotency', () => {
   });
 
   it('rejects shared entity push when user is not a household member', async () => {
-    (householdAuthz.resolveHouseholdId as jest.Mock).mockReturnValue(HOUSEHOLD_ID);
+    (householdAuthz.resolveHouseholdId as jest.Mock).mockReturnValue(
+      HOUSEHOLD_ID,
+    );
     (householdAuthz.authorizeSyncChange as jest.Mock).mockResolvedValue({
       allowed: false,
       reason: 'NOT_HOUSEHOLD_MEMBER',
     });
 
     const result = await service.push('user-1', {
-      changes: [{
-        entityType: 'wallets',
-        entityId: WALLET_ID,
-        updatedAtMillis: 1000,
-        payload: { name: 'Shared', householdId: HOUSEHOLD_ID },
-      }],
+      changes: [
+        {
+          entityType: 'wallets',
+          entityId: WALLET_ID,
+          updatedAtMillis: 1000,
+          payload: { name: 'Shared', householdId: HOUSEHOLD_ID },
+        },
+      ],
     });
 
     expect(result.rejected).toEqual([
@@ -188,7 +211,9 @@ describe('SyncService push idempotency', () => {
   });
 
   it('fans out serverVersion bump to all household members on shared mutation', async () => {
-    (householdAuthz.resolveHouseholdId as jest.Mock).mockReturnValue(HOUSEHOLD_ID);
+    (householdAuthz.resolveHouseholdId as jest.Mock).mockReturnValue(
+      HOUSEHOLD_ID,
+    );
     (householdAuthz.authorizeSyncChange as jest.Mock).mockResolvedValue({
       allowed: true,
       householdId: HOUSEHOLD_ID,
@@ -209,12 +234,14 @@ describe('SyncService push idempotency', () => {
     findOneAndUpdate.mockResolvedValue({});
 
     await service.push('user-1', {
-      changes: [{
-        entityType: 'wallets',
-        entityId: WALLET_ID,
-        updatedAtMillis: 1000,
-        payload: { name: 'Family Wallet', householdId: HOUSEHOLD_ID },
-      }],
+      changes: [
+        {
+          entityType: 'wallets',
+          entityId: WALLET_ID,
+          updatedAtMillis: 1000,
+          payload: { name: 'Family Wallet', householdId: HOUSEHOLD_ID },
+        },
+      ],
     });
 
     expect(lwwService.bumpServerVersionForUsers).toHaveBeenCalledWith([
@@ -264,6 +291,11 @@ describe('SyncService pull with household', () => {
     model as never,
     model as never,
     model as never,
+    model as never,
+    model as never,
+    model as never,
+    model as never,
+    model as never,
     lwwService,
     householdAuthz,
   );
@@ -281,19 +313,36 @@ describe('SyncService pull with household', () => {
   it('pulls private and shared entities when user belongs to a household', async () => {
     const walletFind = jest.fn().mockReturnValue({
       sort: jest.fn().mockReturnValue({
-        lean: jest.fn()
-          .mockResolvedValueOnce([{ id: 'private-wallet', updatedAtMillis: 1, userId: 'user-1' }])
-          .mockResolvedValueOnce([{ id: 'shared-wallet', updatedAtMillis: 2, userId: 'owner', householdId: HOUSEHOLD_ID }]),
+        lean: jest
+          .fn()
+          .mockResolvedValueOnce([
+            { id: 'private-wallet', updatedAtMillis: 1, userId: 'user-1' },
+          ])
+          .mockResolvedValueOnce([
+            {
+              id: 'shared-wallet',
+              updatedAtMillis: 2,
+              userId: 'owner',
+              householdId: HOUSEHOLD_ID,
+            },
+          ]),
       }),
     });
 
     const emptyFind = jest.fn().mockReturnValue({
-      sort: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }),
+      sort: jest
+        .fn()
+        .mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }),
     });
 
     const serviceWithWallets = new SyncService(
       model as never,
       { find: walletFind } as never,
+      model as never,
+      model as never,
+      model as never,
+      model as never,
+      model as never,
       model as never,
       model as never,
       model as never,
@@ -310,6 +359,8 @@ describe('SyncService pull with household', () => {
     const result = await serviceWithWallets.pull('user-1');
 
     expect(householdAuthz.getActiveHouseholdId).toHaveBeenCalledWith('user-1');
-    expect(result.entities.filter((e) => e.entityType === 'wallets')).toHaveLength(2);
+    expect(
+      result.entities.filter((e) => e.entityType === 'wallets'),
+    ).toHaveLength(2);
   });
 });

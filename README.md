@@ -36,9 +36,9 @@ API runs at `http://localhost:3000`.
 
 Set `ENABLE_SWAGGER=true` in `.env` to expose Swagger (off by default).
 
-| Resource | URL |
-|---|---|
-| Swagger UI | `http://localhost:3000/docs` (requires `ENABLE_SWAGGER=true`) |
+| Resource     | URL                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| Swagger UI   | `http://localhost:3000/docs` (requires `ENABLE_SWAGGER=true`)                                              |
 | OpenAPI JSON | `http://localhost:3000/docs-json` or `http://localhost:3000/openapi.json` (requires `ENABLE_SWAGGER=true`) |
 
 Use **Authorize** in Swagger UI with `Bearer <accessToken>` from `POST /auth/google`.
@@ -55,28 +55,28 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 
 ## Environment variables
 
-| Variable | Required | Description |
-|---|---|---|
-| `MONGODB_URI` | Yes | MongoDB connection string |
-| `JWT_SECRET` | Yes | Secret for signing JWT (min 16 chars) |
-| `JWT_ACCESS_EXPIRES` | No | Access token TTL (default `15m`) |
-| `JWT_REFRESH_EXPIRES` | No | Refresh token TTL (default `7d`) |
-| `GOOGLE_CLIENT_ID` | Yes | Google OAuth Web Client ID |
-| `OPENROUTER_API_KEY` | For AI | OpenRouter API key |
-| `OPENROUTER_MODEL` | No | Model id (default `google/gemini-2.5-flash-lite`) |
-| `OPENROUTER_VISION_MODEL` | No | Vision model for receipt extraction (default `google/gemini-2.5-flash`) |
-| `EXCHANGE_RATE_API_TOKEN` | For FX | ExchangeRate-API v6 token |
-| `RATE_LIMIT_MAX` | No | Max requests per client per window (default `50`) |
-| `RATE_LIMIT_TTL_MS` | No | Rate limit window in ms (default `60000`) |
-| `ENABLE_SWAGGER` | No | Expose `/docs` and OpenAPI JSON (default `false`) |
-| `GOOGLE_PLAY_PACKAGE_NAME` | For billing | Android app id (default `com.technovolution.antyspend`) |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64` | For billing (prod) | Base64-encoded Play service account JSON (Azure App Settings) |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | For billing (local) | Filesystem path or inline JSON; leave empty in prod when using Base64 |
-| `RTDN_ENABLED` | For RTDN | Enable Pub/Sub push webhook processing (default `false`) |
-| `GOOGLE_PUBSUB_PUSH_AUDIENCE` | For RTDN | OIDC audience for push auth (webhook URL) |
-| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | For RTDN | Expected service account email on push JWT |
-| `RTDN_SKIP_AUTH` | For RTDN | Skip Pub/Sub OIDC auth (local dev only; default `false`) |
-| `PORT` | No | HTTP port (default `3000`) |
+| Variable                                   | Required            | Description                                                             |
+| ------------------------------------------ | ------------------- | ----------------------------------------------------------------------- |
+| `MONGODB_URI`                              | Yes                 | MongoDB connection string                                               |
+| `JWT_SECRET`                               | Yes                 | Secret for signing JWT (min 16 chars)                                   |
+| `JWT_ACCESS_EXPIRES`                       | No                  | Access token TTL (default `15m`)                                        |
+| `JWT_REFRESH_EXPIRES`                      | No                  | Refresh token TTL (default `7d`)                                        |
+| `GOOGLE_CLIENT_ID`                         | Yes                 | Google OAuth Web Client ID                                              |
+| `OPENROUTER_API_KEY`                       | For AI              | OpenRouter API key                                                      |
+| `OPENROUTER_MODEL`                         | No                  | Model id (default `google/gemini-2.5-flash-lite`)                       |
+| `OPENROUTER_VISION_MODEL`                  | No                  | Vision model for receipt extraction (default `google/gemini-2.5-flash`) |
+| `EXCHANGE_RATE_API_TOKEN`                  | For FX              | ExchangeRate-API v6 token                                               |
+| `RATE_LIMIT_MAX`                           | No                  | Max requests per client per window (default `50`)                       |
+| `RATE_LIMIT_TTL_MS`                        | No                  | Rate limit window in ms (default `60000`)                               |
+| `ENABLE_SWAGGER`                           | No                  | Expose `/docs` and OpenAPI JSON (default `false`)                       |
+| `GOOGLE_PLAY_PACKAGE_NAME`                 | For billing         | Android app id (default `com.technovolution.antyspend`)                 |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`  | For billing (prod)  | Base64-encoded Play service account JSON (Azure App Settings)           |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`         | For billing (local) | Filesystem path or inline JSON; leave empty in prod when using Base64   |
+| `RTDN_ENABLED`                             | For RTDN            | Enable Pub/Sub push webhook processing (default `false`)                |
+| `GOOGLE_PUBSUB_PUSH_AUDIENCE`              | For RTDN            | OIDC audience for push auth (webhook URL)                               |
+| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | For RTDN            | Expected service account email on push JWT                              |
+| `RTDN_SKIP_AUTH`                           | For RTDN            | Skip Pub/Sub OIDC auth (local dev only; default `false`)                |
+| `PORT`                                     | No                  | HTTP port (default `3000`)                                              |
 
 ## Security
 
@@ -106,7 +106,6 @@ Defense in depth for MongoDB writes and queries:
 - Store `MONGODB_URI` only in environment secrets; rotate credentials periodically.
 - Never log connection strings in production.
 
-
 Vertical slices per domain module:
 
 ```
@@ -122,6 +121,7 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 ## Key endpoints
 
 ### Auth
+
 - `POST /auth/google` — exchange Google idToken for JWT pair
 - `POST /auth/refresh` — refresh access token
 - `POST /auth/logout` — revoke refresh token
@@ -129,14 +129,17 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 - `GET /auth/me` — authenticated profile
 
 ### AI (Bearer JWT)
+
 - `POST /ai/expense-extraction` — `{ text, defaultCurrencyCode?, userLanguage? }`
 - `POST /ai/receipt-extraction` — `{ imageBase64, mimeType, defaultCurrencyCode?, userLanguage?, ocrText? }`
 - `POST /ai/leak-analysis` — `{ month?, userLanguage? }` (loads transactions from Mongo)
 
 ### Exchange rates
+
 - `GET /exchange-rates/latest` — USD-based rates (Mongo cache, 1 snapshot/día UTC)
 
 ### CRUD (Bearer JWT, scoped by userId)
+
 - `GET|POST|PATCH|DELETE /wallets`
 - `GET|POST|PATCH|DELETE /categories`
 - `GET|POST|PATCH|DELETE /merchants`
@@ -153,21 +156,29 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 - `POST /currencies/seed` — re-run seed
 
 ### Entitlements (Bearer JWT)
+
 - `GET /entitlements/me` — current subscription: `planType`, `status`, `expiresAtMillis`, `productId`, `source`, `active`
 - `POST /entitlements/verify-purchase` — `{ productId, purchaseToken, packageName? }` verifies with Google Play and upserts entitlement
 
 ### Webhooks (Pub/Sub push, no user JWT)
+
 - `POST /webhooks/google-play/rtdn` — Google Play Real-time Developer Notifications via Cloud Pub/Sub push
 
 Product IDs (configure matching subscriptions in Play Console):
+
 - `antyspend_personal_monthly` — Personal tier (cloud sync)
 - `antyspend_family_monthly` — Family tier (Personal + household features)
 
 ### Sync (Bearer JWT)
+
 - `POST /sync/push` — bulk LWW push `{ changes[], lastKnownServerVersion?, deviceId? }`
 - `GET /sync/pull?since=<serverVersion>` — pull all user entities
 
 All syncable entities include: `id`, `userId`, `createdAtMillis`, `updatedAtMillis`, optional `deletedAtMillis`, `clientUpdatedAtMillis`, `deviceId`.
+
+Supported entity types: `settings`, `wallets`, `categories`, `merchants`, `transactions`, `budgets`, `recurring_expenses`, `savings_plans`, `savings_movements`, `investments`, `investment_movements`, `expense_splits`, `expense_split_lines`, `settlements`, `budget_member_quotas`, and `debt_accounts`.
+
+Household payloads include `householdId` and are returned only while the household owner's Family entitlement is active. Shared debts, wallets, categories, budgets, savings plans, and investments are owner-managed. Budget quota payloads use `memberUserId` for the member receiving the quota; top-level `userId` remains the sync document owner.
 
 **LWW rule:** client wins if `updatedAtMillis` is newer; on tie, lexicographically greater `deviceId` wins, else server wins.
 
@@ -256,12 +267,12 @@ flowchart TB
 
 ### RTDN environment variables
 
-| Variable | Description |
-|---|---|
-| `RTDN_ENABLED` | `true` to enforce Pub/Sub OIDC auth in production |
-| `GOOGLE_PUBSUB_PUSH_AUDIENCE` | Webhook URL used as JWT audience |
-| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | Expected `email` claim on push JWT |
-| `RTDN_SKIP_AUTH` | `true` for local testing without OIDC (never in production) |
+| Variable                                   | Description                                                 |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| `RTDN_ENABLED`                             | `true` to enforce Pub/Sub OIDC auth in production           |
+| `GOOGLE_PUBSUB_PUSH_AUDIENCE`              | Webhook URL used as JWT audience                            |
+| `GOOGLE_PUBSUB_PUSH_SERVICE_ACCOUNT_EMAIL` | Expected `email` claim on push JWT                          |
+| `RTDN_SKIP_AUTH`                           | `true` for local testing without OIDC (never in production) |
 
 When `RTDN_ENABLED=false`, audience is unset in development, or `RTDN_SKIP_AUTH=true`, the webhook skips OIDC verification (with a warning log).
 

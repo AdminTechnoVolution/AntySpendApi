@@ -141,3 +141,99 @@ describe('AiService.extractFromReceipt', () => {
     ).rejects.toThrow('Invalid AI response');
   });
 });
+
+describe('AiService.generateMonthlyReport', () => {
+  const chatCompletionJson = jest.fn();
+  const openRouter = { chatCompletionJson };
+
+  const currencyFind = jest.fn();
+  const categoryFind = jest.fn();
+  const settingsFindOne = jest.fn();
+  const transactionFind = jest.fn();
+  const recurringFind = jest.fn();
+
+  const currencyModel = { find: currencyFind };
+  const categoryModel = { find: categoryFind };
+  const settingsModel = { findOne: settingsFindOne };
+  const transactionModel = { find: transactionFind };
+  const recurringModel = { find: recurringFind };
+
+  let service: AiService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    settingsFindOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue({ primaryCurrencyCode: 'USD', appLanguage: 'en' }),
+    });
+    categoryFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+    recurringFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
+    transactionFind.mockReturnValue({
+      lean: jest.fn().mockResolvedValue([
+        {
+          id: 'tx-1',
+          title: 'Coffee',
+          primaryAmountMinor: 500,
+          primaryCurrencyCode: 'USD',
+          type: 'EXPENSE',
+          occurredAtMillis: Date.now(),
+        },
+      ]),
+    });
+    chatCompletionJson.mockResolvedValue({
+      reportSummary: 'Good month',
+      monthComparisonSummary: 'Spent less',
+      spendingChangePercent: -5,
+      topLeaks: [],
+      budgetRecommendation: {
+        categoryName: 'Food',
+        suggestedLimitMajor: 200,
+        currencyCode: 'USD',
+        rationale: 'High spend',
+        createBudgetPrompt: 'Create a Food budget?',
+      },
+      highlights: ['Win'],
+    });
+    service = new AiService(
+      openRouter as never,
+      currencyModel as never,
+      categoryModel as never,
+      settingsModel as never,
+      transactionModel as never,
+      recurringModel as never,
+    );
+  });
+
+  it('returns structured monthly report for client payload', async () => {
+    const result = await service.generateMonthlyReport('user-1', {
+      month: '2026-05',
+      currentMonthSummary: {
+        totalExpenseMajor: 100,
+        totalIncomeMajor: 200,
+        currencyCode: 'USD',
+        topCategories: [{ categoryName: 'Food', amountMajor: 50 }],
+      },
+      previousMonthSummary: {
+        totalExpenseMajor: 120,
+        totalIncomeMajor: 200,
+        currencyCode: 'USD',
+        topCategories: [],
+      },
+      transactions: [
+        {
+          id: 1,
+          title: 'Coffee',
+          amount: 5,
+          currencyCode: 'USD',
+          categoryName: 'Food',
+          daysAgo: 1,
+          occurredAtMillis: Date.now(),
+        },
+      ],
+    });
+
+    expect(chatCompletionJson).toHaveBeenCalled();
+    expect(result.reportSummary).toBe('Good month');
+    expect(result.month).toBe('2026-05');
+    expect(result.budgetRecommendation.categoryName).toBe('Food');
+  });
+});

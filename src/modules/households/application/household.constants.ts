@@ -7,6 +7,7 @@ export const OWNER_ONLY_SHARED_ENTITY_TYPES = new Set([
   'budgets',
   'savings_plans',
   'investments',
+  'debt_accounts',
 ]);
 
 export const MEMBER_CONTRIBUTION_ENTITY_TYPES = new Set([
@@ -18,4 +19,8 @@ export const MEMBER_CONTRIBUTION_ENTITY_TYPES = new Set([
 export const HOUSEHOLD_SHAREABLE_ENTITY_TYPES = new Set([
   ...OWNER_ONLY_SHARED_ENTITY_TYPES,
   ...MEMBER_CONTRIBUTION_ENTITY_TYPES,
+  'expense_splits',
+  'expense_split_lines',
+  'settlements',
+  'budget_member_quotas',
 ]);

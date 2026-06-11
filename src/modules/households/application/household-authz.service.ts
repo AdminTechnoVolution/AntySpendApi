@@ -8,11 +8,14 @@ import {
   OWNER_ONLY_SHARED_ENTITY_TYPES,
 } from './household.constants';
 import {
+  Household,
+  HouseholdDocument,
   HouseholdMember,
   HouseholdMemberDocument,
   MEMBER_ROLE,
   MEMBER_STATUS,
 } from '../infrastructure/household.schemas';
+import { EntitlementsService } from './entitlements.service';
 
 export type HouseholdAuthzDecision =
   | { allowed: true; householdId?: string; isOwner: boolean }
@@ -23,6 +26,9 @@ export class HouseholdAuthzService {
   constructor(
     @InjectModel(HouseholdMember.name)
     private readonly memberModel: Model<HouseholdMemberDocument>,
+    @InjectModel(Household.name)
+    private readonly householdModel: Model<HouseholdDocument>,
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   async getActiveMembership(userId: string) {
@@ -33,7 +39,10 @@ export class HouseholdAuthzService {
 
   async getActiveHouseholdId(userId: string): Promise<string | null> {
     const membership = await this.getActiveMembership(userId);
-    return membership?.householdId ?? null;
+    if (!membership) return null;
+    return (await this.hasActiveFamilyFeatures(membership.householdId))
+      ? membership.householdId
+      : null;
   }
 
   async getActiveMemberUserIds(householdId: string): Promise<string[]> {
@@ -92,6 +101,9 @@ export class HouseholdAuthzService {
     if (!membership) {
       return { allowed: false, reason: 'NOT_HOUSEHOLD_MEMBER' };
     }
+    if (!(await this.hasActiveFamilyFeatures(householdId))) {
+      return { allowed: false, reason: 'FAMILY_PLAN_INACTIVE' };
+    }
 
     const isOwner = membership.role === MEMBER_ROLE.OWNER;
     const isDelete = change.deletedAtMillis !== undefined;
@@ -145,5 +157,13 @@ export class HouseholdAuthzService {
 
   isShareableEntityType(entityType: SyncEntityType): boolean {
     return HOUSEHOLD_SHAREABLE_ENTITY_TYPES.has(entityType);
+  }
+
+  private async hasActiveFamilyFeatures(householdId: string): Promise<boolean> {
+    const household = await this.householdModel
+      .findOne({ id: householdId })
+      .lean();
+    if (!household) return false;
+    return this.entitlementsService.hasActiveFamilyPlan(household.ownerUserId);
   }
 }

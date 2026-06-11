@@ -155,3 +155,105 @@ export class LeakAnalysisRequestDto {
   @IsNumber()
   microExpenseThresholdPrimaryMinor?: number;
 }
+
+export class MonthlyReportBudgetDto {
+  @ApiProperty()
+  @IsString()
+  name!: string;
+
+  @ApiProperty()
+  @IsString()
+  categoryName!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  limitMajor!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  spentMajor!: number;
+
+  @ApiProperty()
+  @IsString()
+  currencyCode!: string;
+}
+
+export class MonthlyReportCategoryTotalDto {
+  @ApiProperty()
+  @IsString()
+  categoryName!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  amountMajor!: number;
+}
+
+export class MonthlyReportMonthSummaryDto {
+  @ApiProperty()
+  @IsNumber()
+  totalExpenseMajor!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  totalIncomeMajor!: number;
+
+  @ApiProperty()
+  @IsString()
+  currencyCode!: string;
+
+  @ApiProperty({ type: [MonthlyReportCategoryTotalDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MonthlyReportCategoryTotalDto)
+  topCategories!: MonthlyReportCategoryTotalDto[];
+}
+
+export class MonthlyReportRequestDto {
+  @ApiProperty({ required: false, description: 'Month in YYYY-MM format; defaults to previous calendar month' })
+  @IsOptional()
+  @IsString()
+  month?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  userLanguage?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  primaryCurrencyCode?: string;
+
+  @ApiProperty({ required: false, type: MonthlyReportMonthSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MonthlyReportMonthSummaryDto)
+  currentMonthSummary?: MonthlyReportMonthSummaryDto;
+
+  @ApiProperty({ required: false, type: MonthlyReportMonthSummaryDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MonthlyReportMonthSummaryDto)
+  previousMonthSummary?: MonthlyReportMonthSummaryDto;
+
+  @ApiProperty({ required: false, type: [LeakAnalysisTransactionDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LeakAnalysisTransactionDto)
+  transactions?: LeakAnalysisTransactionDto[];
+
+  @ApiProperty({ required: false, type: [LeakAnalysisRecurringDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LeakAnalysisRecurringDto)
+  recurringExpenses?: LeakAnalysisRecurringDto[];
+
+  @ApiProperty({ required: false, type: [MonthlyReportBudgetDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MonthlyReportBudgetDto)
+  budgets?: MonthlyReportBudgetDto[];
+}
