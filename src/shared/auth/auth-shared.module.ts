@@ -1,10 +1,12 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { GoogleTokenVerifier } from './google-token.verifier';
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 
+@Global()
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -15,7 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
       }),
     }),
   ],
-  providers: [GoogleTokenVerifier, JwtStrategy],
-  exports: [JwtModule, PassportModule, GoogleTokenVerifier],
+  providers: [GoogleTokenVerifier, JwtStrategy, JwtAuthGuard],
+  exports: [JwtModule, PassportModule, GoogleTokenVerifier, JwtAuthGuard],
 })
 export class AuthSharedModule {}

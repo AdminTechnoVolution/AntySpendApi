@@ -6,6 +6,8 @@
  *   npx ts-node scripts/dedupe-sync-duplicates.ts --apply
  *   npx ts-node scripts/dedupe-sync-duplicates.ts --apply --email user@gmail.com
  */
+/// <reference types="node" />
+
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import mongoose from 'mongoose';
@@ -172,7 +174,7 @@ async function main() {
   const args = process.argv.slice(2);
   const apply = args.includes('--apply');
   const dryRun = !apply || args.includes('--dry-run');
-  const emailArg = args.find((arg) => arg.startsWith('--email='))?.split('=')[1];
+  const emailArg = args.find((arg: string) => arg.startsWith('--email='))?.split('=')[1];
 
   const uri = loadMongoUri();
   await mongoose.connect(uri);

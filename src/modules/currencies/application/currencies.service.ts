@@ -6,12 +6,16 @@ import {
   Currency,
   CurrencyDocument,
 } from '../../../shared/database/entity.schemas';
+import { SettingsService } from '../../settings/application/settings.service';
+import { EntitlementsService } from '../../households/application/entitlements.service';
 
 @Injectable()
 export class CurrenciesService implements OnModuleInit {
   constructor(
     @InjectModel(Currency.name)
     private readonly currencyModel: Model<CurrencyDocument>,
+    private readonly settingsService: SettingsService,
+    private readonly entitlementsService: EntitlementsService,
   ) {}
 
   async onModuleInit() {
@@ -39,5 +43,17 @@ export class CurrenciesService implements OnModuleInit {
 
   async findAll() {
     return this.currencyModel.find().sort({ code: 1 }).lean();
+  }
+
+  async findVisibleForUser(userId: string) {
+    const entitlement = await this.entitlementsService.getMyEntitlement(userId);
+    if (entitlement.premiumAccessActive) {
+      return this.findAll();
+    }
+
+    const settings = await this.settingsService.findByUserId(userId);
+    const primaryCurrencyCode = settings?.primaryCurrencyCode?.trim().toUpperCase() || 'USD';
+    const primaryCurrency = await this.currencyModel.findOne({ code: primaryCurrencyCode }).lean();
+    return primaryCurrency ? [primaryCurrency] : [];
   }
 }

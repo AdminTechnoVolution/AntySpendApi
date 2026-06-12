@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './shared/filters/all-exceptions.filter';
+import { JwtAuthGuard } from './shared/auth/jwt-auth.guard';
 import { mongoSanitizeMiddleware } from './shared/security/mongo-sanitize.middleware';
 import { BEARER_AUTH_SCHEME } from './shared/swagger/swagger.constants';
 
@@ -27,6 +28,7 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+  app.useGlobalGuards(app.get(JwtAuthGuard));
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const configService = app.get(ConfigService);

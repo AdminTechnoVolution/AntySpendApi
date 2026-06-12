@@ -1,7 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ParseEntityIdPipe } from '../../../shared/security/parse-entity-id.pipe';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
 import { IdempotencyKey } from '../../../shared/crud/idempotency-key.decorator';
@@ -23,7 +22,6 @@ import { CategoryService } from '../application/categories.service';
 
 @ApiTags('categories')
 @ApiBearerAuth(BEARER_AUTH_SCHEME)
-@UseGuards(JwtAuthGuard)
 @Controller('categories')
 export class CategoryController {
   constructor(private readonly service: CategoryService) {}

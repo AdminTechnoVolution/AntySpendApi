@@ -5,7 +5,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
+import { JwtAuthGuard, SkipSubscriptionCheck } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
 import { ApiStandardAuthResponses } from '../../../shared/swagger/common-responses.decorator';
@@ -29,6 +29,7 @@ export class EntitlementsController {
   }
 
   @Post('verify-purchase')
+  @SkipSubscriptionCheck()
   @ApiOperation({
     summary: 'Verify Google Play purchase and upsert entitlement',
   })

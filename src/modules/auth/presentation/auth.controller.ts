@@ -6,7 +6,6 @@ import {
   HttpCode,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -15,7 +14,10 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
+import {
+  PublicRoute,
+  SkipSubscriptionCheck,
+} from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
 import { BEARER_AUTH_SCHEME } from '../../../shared/swagger/swagger.constants';
@@ -40,6 +42,7 @@ export class AuthController {
   ) {}
 
   @Post('google')
+  @PublicRoute()
   @ApiOperation({ summary: 'Login or register with Google idToken' })
   @ApiOkResponse({ type: AuthTokensResponseDto })
   async google(@Body() dto: GoogleAuthDto): Promise<AuthTokensResponseDto> {
@@ -47,6 +50,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @PublicRoute()
   @HttpCode(200)
   @ApiOperation({ summary: 'Refresh access token (idempotent within 5 minutes)' })
   @ApiOkResponse({ type: AuthTokensResponseDto })
@@ -55,6 +59,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @PublicRoute()
   @HttpCode(200)
   @ApiOperation({ summary: 'Invalidate refresh token' })
   @ApiOkResponse({ type: LogoutResponseDto })
@@ -63,7 +68,6 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth(BEARER_AUTH_SCHEME)
   @ApiOperation({ summary: 'Get authenticated user profile' })
   @ApiOkResponse({ type: AuthUserDto })
@@ -73,7 +77,6 @@ export class AuthController {
   }
 
   @Patch('profile')
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth(BEARER_AUTH_SCHEME)
   @ApiOperation({ summary: 'Update authenticated user display name' })
   @ApiOkResponse({ type: AuthUserDto })
@@ -86,8 +89,8 @@ export class AuthController {
   }
 
   @Delete('account')
+  @SkipSubscriptionCheck()
   @HttpCode(200)
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth(BEARER_AUTH_SCHEME)
   @ApiOperation({
     summary: 'Permanently delete authenticated user account and all cloud data',
