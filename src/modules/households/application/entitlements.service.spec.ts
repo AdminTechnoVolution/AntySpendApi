@@ -313,6 +313,27 @@ describe('EntitlementsService', () => {
       expect(result.familyPlanBeneficiary).toBe(false);
       expect(memberFindOne).not.toHaveBeenCalled();
     });
+
+    it('preserves the canceled plan so clients can reactivate the same product', async () => {
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          userId,
+          planType: PLAN_TYPE.FAMILY,
+          status: ENTITLEMENT_STATUS.CANCELED,
+          source: ENTITLEMENT_SOURCE.PLAY_STORE,
+          expiresAtMillis: futureExpiry,
+          googlePlayProductId: PLAY_PRODUCT_FAMILY,
+          autoRenewing: false,
+        }),
+      });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.active).toBe(false);
+      expect(result.planType).toBe(PLAN_TYPE.FAMILY);
+      expect(result.status).toBe(ENTITLEMENT_STATUS.CANCELED);
+      expect(result.premiumAccessActive).toBe(false);
+    });
   });
 
   describe('verifyPurchase', () => {
@@ -412,6 +433,45 @@ describe('EntitlementsService', () => {
       expect(result.status).toBe(ENTITLEMENT_STATUS.EXPIRED);
       expect(result.active).toBe(false);
       expect(result.planType).toBeNull();
+    });
+
+    it('keeps a non-expired non-renewing purchase CANCELED', async () => {
+      verifySubscription.mockResolvedValue({
+        expiryTimeMillis: futureExpiry,
+        autoRenewing: false,
+        orderId: 'GPA.canceled',
+      });
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+      findOneAndUpdate.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          userId,
+          planType: PLAN_TYPE.PERSONAL,
+          status: ENTITLEMENT_STATUS.CANCELED,
+          source: ENTITLEMENT_SOURCE.PLAY_STORE,
+          expiresAtMillis: futureExpiry,
+          googlePlayProductId: PLAY_PRODUCT_PERSONAL,
+          autoRenewing: false,
+        }),
+      });
+
+      const result = await service.verifyPurchase(
+        userId,
+        PLAY_PRODUCT_PERSONAL,
+        'canceled-token',
+      );
+
+      expect(findOneAndUpdate).toHaveBeenCalledWith(
+        { userId },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            status: ENTITLEMENT_STATUS.CANCELED,
+            autoRenewing: false,
+          }),
+        }),
+        expect.objectContaining({ upsert: true }),
+      );
+      expect(result.status).toBe(ENTITLEMENT_STATUS.CANCELED);
+      expect(result.active).toBe(false);
     });
 
     it('propagates unknown product errors from PlayBillingVerificationService', async () => {

@@ -139,10 +139,11 @@ export class EntitlementsService {
 
     const now = Date.now();
     const expiresAtMillis = verified.expiryTimeMillis;
-    const status =
-      expiresAtMillis > now
-        ? ENTITLEMENT_STATUS.ACTIVE
-        : ENTITLEMENT_STATUS.EXPIRED;
+    const status = this.statusFromExpiryAndRenewal(
+      expiresAtMillis,
+      verified.autoRenewing,
+      now,
+    );
 
     const doc = await this.entitlementModel
       .findOneAndUpdate(
@@ -196,6 +197,7 @@ export class EntitlementsService {
       notificationType,
       expiresAtMillis,
       verified.subscriptionState,
+      verified.autoRenewing,
       now,
     );
 
@@ -219,6 +221,7 @@ export class EntitlementsService {
     notificationType: number | undefined,
     expiresAtMillis: number,
     subscriptionState: string,
+    autoRenewing: boolean,
     now: number,
   ): string {
     const notExpired = expiresAtMillis > now;
@@ -235,21 +238,25 @@ export class EntitlementsService {
       case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RENEWED:
       case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RECOVERED:
       case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RESTARTED:
-        return notExpired
-          ? ENTITLEMENT_STATUS.ACTIVE
-          : ENTITLEMENT_STATUS.EXPIRED;
+        return this.statusFromExpiryAndRenewal(
+          expiresAtMillis,
+          autoRenewing,
+          now,
+        );
       case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_IN_GRACE_PERIOD:
       case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_ON_HOLD:
       case RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_PAUSED:
         return this.statusFromPlaySubscriptionState(
           subscriptionState,
           expiresAtMillis,
+          autoRenewing,
           now,
         );
       default:
         return this.statusFromPlaySubscriptionState(
           subscriptionState,
           expiresAtMillis,
+          autoRenewing,
           now,
         );
     }
@@ -258,13 +265,18 @@ export class EntitlementsService {
   private statusFromPlaySubscriptionState(
     subscriptionState: string,
     expiresAtMillis: number,
+    autoRenewing: boolean,
     now: number,
   ): string {
     const notExpired = expiresAtMillis > now;
 
     switch (subscriptionState) {
       case 'SUBSCRIPTION_STATE_ACTIVE':
-        return notExpired ? ENTITLEMENT_STATUS.ACTIVE : ENTITLEMENT_STATUS.EXPIRED;
+        return this.statusFromExpiryAndRenewal(
+          expiresAtMillis,
+          autoRenewing,
+          now,
+        );
       case 'SUBSCRIPTION_STATE_CANCELED':
         return notExpired
           ? ENTITLEMENT_STATUS.CANCELED
@@ -274,10 +286,31 @@ export class EntitlementsService {
       case 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD':
       case 'SUBSCRIPTION_STATE_ON_HOLD':
       case 'SUBSCRIPTION_STATE_PAUSED':
-        return notExpired ? ENTITLEMENT_STATUS.ACTIVE : ENTITLEMENT_STATUS.EXPIRED;
+        return this.statusFromExpiryAndRenewal(
+          expiresAtMillis,
+          autoRenewing,
+          now,
+        );
       default:
-        return notExpired ? ENTITLEMENT_STATUS.ACTIVE : ENTITLEMENT_STATUS.EXPIRED;
+        return this.statusFromExpiryAndRenewal(
+          expiresAtMillis,
+          autoRenewing,
+          now,
+        );
     }
+  }
+
+  private statusFromExpiryAndRenewal(
+    expiresAtMillis: number,
+    autoRenewing: boolean,
+    now: number,
+  ): string {
+    if (expiresAtMillis <= now) {
+      return ENTITLEMENT_STATUS.EXPIRED;
+    }
+    return autoRenewing
+      ? ENTITLEMENT_STATUS.ACTIVE
+      : ENTITLEMENT_STATUS.CANCELED;
   }
 
   private emptyEntitlement(userId: string) {
@@ -299,7 +332,10 @@ export class EntitlementsService {
     const active = this.isActive(doc);
     return {
       userId: doc.userId,
-      planType: active ? doc.planType : null,
+      planType:
+        active || doc.status === ENTITLEMENT_STATUS.CANCELED
+          ? doc.planType
+          : null,
       status: doc.status ?? ENTITLEMENT_STATUS.NONE,
       expiresAtMillis: doc.expiresAtMillis ?? null,
       productId: doc.googlePlayProductId ?? null,
