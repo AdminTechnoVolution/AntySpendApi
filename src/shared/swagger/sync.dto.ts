@@ -18,9 +18,14 @@ export class SyncChangeDto {
   @IsIn(SYNC_ENTITY_TYPES)
   entityType!: (typeof SYNC_ENTITY_TYPES)[number];
 
-  @ApiProperty({ description: '32-char hex entity id' })
+  @ApiProperty({
+    description:
+      'Stable entity id: 32-char hex or canonical UUID kept for backward compatibility',
+  })
   @IsString()
-  @Matches(/^[a-f0-9]{32}$/)
+  @Matches(
+    /^(?:[a-f0-9]{32}|[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/i,
+  )
   entityId!: string;
 
   @ApiProperty()
