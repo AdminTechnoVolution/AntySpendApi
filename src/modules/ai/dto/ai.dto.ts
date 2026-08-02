@@ -6,6 +6,7 @@ import {
   IsIn,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   ValidateNested,
@@ -29,7 +30,9 @@ export class ExpenseExtractionRequestDto {
 }
 
 export class ReceiptExtractionRequestDto {
-  @ApiProperty({ description: 'Base64-encoded image bytes without a data: URL prefix' })
+  @ApiProperty({
+    description: 'Base64-encoded image bytes without a data: URL prefix',
+  })
   @IsString()
   @IsNotEmpty()
   imageBase64!: string;
@@ -58,6 +61,24 @@ export class ReceiptExtractionRequestDto {
   @IsOptional()
   @IsString()
   ocrText?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Preliminary result produced on device',
+  })
+  @IsOptional()
+  @IsObject()
+  preliminaryResult?: Record<string, unknown>;
+
+  @ApiProperty({ required: false, description: 'OCR lines with image coordinates' })
+  @IsOptional()
+  @IsArray()
+  ocrLines?: Array<Record<string, unknown>>;
+
+  @ApiProperty({ required: false, description: 'Client scan identifier for diagnostics' })
+  @IsOptional()
+  @IsString()
+  scanAttemptId?: string;
 }
 
 export class LeakAnalysisTransactionDto {
@@ -121,7 +142,10 @@ export class LeakAnalysisRecurringDto {
 }
 
 export class LeakAnalysisRequestDto {
-  @ApiProperty({ required: false, description: 'Month in YYYY-MM format; defaults to current month' })
+  @ApiProperty({
+    required: false,
+    description: 'Month in YYYY-MM format; defaults to current month',
+  })
   @IsOptional()
   @IsString()
   month?: string;
@@ -209,7 +233,10 @@ export class MonthlyReportMonthSummaryDto {
 }
 
 export class MonthlyReportRequestDto {
-  @ApiProperty({ required: false, description: 'Month in YYYY-MM format; defaults to previous calendar month' })
+  @ApiProperty({
+    required: false,
+    description: 'Month in YYYY-MM format; defaults to previous calendar month',
+  })
   @IsOptional()
   @IsString()
   month?: string;

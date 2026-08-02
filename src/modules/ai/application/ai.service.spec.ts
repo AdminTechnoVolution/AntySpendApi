@@ -31,9 +31,11 @@ describe('AiService.extractFromReceipt', () => {
       ]),
     });
     categoryFind.mockReturnValue({
-      lean: jest.fn().mockResolvedValue([
-        { id: 'cat-1', customName: 'Food & Drinks', key: 'category_food' },
-      ]),
+      lean: jest
+        .fn()
+        .mockResolvedValue([
+          { id: 'cat-1', customName: 'Food & Drinks', key: 'category_food' },
+        ]),
     });
     settingsFindOne.mockReturnValue({
       lean: jest.fn().mockResolvedValue({
@@ -72,8 +74,22 @@ describe('AiService.extractFromReceipt', () => {
     });
 
     expect(chatCompletionJsonWithImage).toHaveBeenCalledTimes(1);
-    const [systemPrompt, userContent, imageBase64, mimeType, schemaName, schema] =
-      chatCompletionJsonWithImage.mock.calls[0];
+    const call = chatCompletionJsonWithImage.mock.calls[0] as unknown as [
+      string,
+      string,
+      string,
+      string,
+      string,
+      Record<string, unknown>,
+    ];
+    const [
+      systemPrompt,
+      userContent,
+      imageBase64,
+      mimeType,
+      schemaName,
+      schema,
+    ] = call;
 
     expect(systemPrompt).toContain(RECEIPT_EXTRACTION_SYSTEM_PROMPT);
     expect(systemPrompt).toContain("user's phone language is 'es'");
@@ -98,10 +114,78 @@ describe('AiService.extractFromReceipt', () => {
     expect(imageBase64).toBe(tinyPngBase64);
     expect(mimeType).toBe('image/png');
     expect(schemaName).toBe('expense_extraction_response');
-    expect(schema).toEqual(
-      EXPENSE_EXTRACTION_JSON_SCHEMA as unknown as Record<string, unknown>,
-    );
+    expect(schema).toEqual(EXPENSE_EXTRACTION_JSON_SCHEMA);
     expect(result.expenses).toHaveLength(1);
+  });
+
+  it('caches receipt catalogs and user context across nearby scans', async () => {
+    await service.extractFromReceipt('user-1', {
+      imageBase64: tinyPngBase64,
+      mimeType: 'png',
+    });
+    await service.extractFromReceipt('user-1', {
+      imageBase64: tinyPngBase64,
+      mimeType: 'png',
+    });
+
+    expect(currencyFind).toHaveBeenCalledTimes(1);
+    expect(categoryFind).toHaveBeenCalledTimes(1);
+    expect(settingsFindOne).toHaveBeenCalledTimes(1);
+    expect(chatCompletionJsonWithImage).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends only spatially and semantically relevant OCR lines', async () => {
+    const ocrLines = Array.from({ length: 100 }, (_, index) => ({
+      text: index === 99 ? 'GRAND TOTAL 9.72' : `line ${index}`,
+      left: 0,
+      top: index * 20,
+      right: 100,
+      bottom: index * 20 + 10,
+    }));
+
+    await service.extractFromReceipt('user-1', {
+      imageBase64: tinyPngBase64,
+      mimeType: 'png',
+      ocrLines,
+    });
+
+    const call = chatCompletionJsonWithImage.mock.calls[0] as unknown as [
+      string,
+      string,
+    ];
+    const input = JSON.parse(call[1]) as {
+      ocrLines: Array<{ text: string }>;
+    };
+    expect(input.ocrLines.length).toBeLessThanOrEqual(60);
+    expect(
+      input.ocrLines.some((line) => line.text === 'GRAND TOTAL 9.72'),
+    ).toBe(true);
+  });
+
+  it('normalizes an unambiguous receipt date instead of trusting model epoch arithmetic', async () => {
+    chatCompletionJsonWithImage.mockResolvedValueOnce({
+      expenses: [
+        {
+          title: "McDonald's purchase",
+          occurredAtMillis: 1785578280000,
+          fieldEvidence: {
+            occurredAtMillis: {
+              value: '1785578280000',
+              sourceText: '07/31/2026 05:18 PM',
+              confidence: 0.98,
+              reason: 'Visible receipt date',
+            },
+          },
+        },
+      ],
+    });
+
+    const result = await service.extractFromReceipt('user-1', {
+      imageBase64: tinyPngBase64,
+      mimeType: 'png',
+    });
+
+    expect(result.expenses[0].occurredAtMillis).toBe(Date.UTC(2026, 6, 31, 12));
   });
 
   it('rejects images larger than 4 MB decoded', async () => {
@@ -163,7 +247,9 @@ describe('AiService.generateMonthlyReport', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     settingsFindOne.mockReturnValue({
-      lean: jest.fn().mockResolvedValue({ primaryCurrencyCode: 'USD', appLanguage: 'en' }),
+      lean: jest
+        .fn()
+        .mockResolvedValue({ primaryCurrencyCode: 'USD', appLanguage: 'en' }),
     });
     categoryFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
     recurringFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });

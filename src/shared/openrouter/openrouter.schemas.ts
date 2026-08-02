@@ -1,13 +1,28 @@
+const RECEIPT_FIELD_EVIDENCE_SCHEMA = {
+  type: 'object',
+  properties: {
+    value: { type: ['string', 'null'], maxLength: 100 },
+    sourceText: { type: ['string', 'null'], maxLength: 100 },
+    confidence: { type: ['number', 'null'], minimum: 0, maximum: 1 },
+    reason: { type: ['string', 'null'], maxLength: 120 },
+  },
+  required: ['value', 'sourceText', 'confidence', 'reason'],
+  additionalProperties: false,
+} as const;
+
 export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
   type: 'object',
   properties: {
     expenses: {
       type: 'array',
+      minItems: 1,
+      maxItems: 1,
       items: {
         type: 'object',
         properties: {
-          title: { type: 'string' },
+          title: { type: 'string', maxLength: 100 },
           amount: { type: ['number', 'null'] },
+          occurredAtMillis: { type: ['integer', 'null'] },
           currency: {
             type: 'object',
             properties: {
@@ -67,15 +82,40 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
             required: ['catalogId', 'name', 'rawValue', 'matchType'],
             additionalProperties: false,
           },
-          store: { type: ['string', 'null'] },
-          sourceText: { type: 'string' },
+          store: { type: ['string', 'null'], maxLength: 100 },
+          sourceText: { type: 'string', maxLength: 180 },
           confidence: { type: 'number', minimum: 0, maximum: 1 },
           requiresReview: { type: 'boolean' },
-          reviewReasons: { type: 'array', items: { type: 'string' } },
+          reviewReasons: {
+            type: 'array',
+            maxItems: 5,
+            items: { type: 'string', maxLength: 60 },
+          },
+          fieldEvidence: {
+            type: 'object',
+            properties: {
+              title: RECEIPT_FIELD_EVIDENCE_SCHEMA,
+              store: RECEIPT_FIELD_EVIDENCE_SCHEMA,
+              amount: RECEIPT_FIELD_EVIDENCE_SCHEMA,
+              currency: RECEIPT_FIELD_EVIDENCE_SCHEMA,
+              occurredAtMillis: RECEIPT_FIELD_EVIDENCE_SCHEMA,
+              paymentMethod: RECEIPT_FIELD_EVIDENCE_SCHEMA,
+            },
+            required: [
+              'title',
+              'store',
+              'amount',
+              'currency',
+              'occurredAtMillis',
+              'paymentMethod',
+            ],
+            additionalProperties: false,
+          },
         },
         required: [
           'title',
           'amount',
+          'occurredAtMillis',
           'currency',
           'category',
           'paymentMethod',
@@ -84,6 +124,7 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
           'confidence',
           'requiresReview',
           'reviewReasons',
+          'fieldEvidence',
         ],
         additionalProperties: false,
       },

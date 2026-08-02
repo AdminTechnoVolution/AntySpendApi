@@ -31,6 +31,16 @@ export default () => ({
     model: process.env.OPENROUTER_MODEL ?? 'google/gemini-2.5-flash-lite',
     visionModel:
       process.env.OPENROUTER_VISION_MODEL ?? 'google/gemini-2.5-flash',
+    receiptModel:
+      process.env.OPENROUTER_RECEIPT_MODEL ?? 'google/gemini-2.5-flash',
+    receiptTimeoutMs: parseInt(
+      process.env.OPENROUTER_RECEIPT_TIMEOUT_MS ?? '15000',
+      10,
+    ),
+    receiptMaxTokens: parseInt(
+      process.env.OPENROUTER_RECEIPT_MAX_TOKENS ?? '900',
+      10,
+    ),
   },
   exchangeRate: {
     apiToken: process.env.EXCHANGE_RATE_API_TOKEN ?? '',

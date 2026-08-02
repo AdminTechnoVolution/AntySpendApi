@@ -1,9 +1,11 @@
 import {
   BadGatewayException,
   BadRequestException,
+  GatewayTimeoutException,
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -22,6 +24,7 @@ type OpenRouterMultimodalContentPart =
 @Injectable()
 export class OpenRouterClient {
   private readonly baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+  private readonly logger = new Logger(OpenRouterClient.name);
 
   constructor(
     private readonly http: HttpService,
@@ -36,7 +39,9 @@ export class OpenRouterClient {
   ): Promise<T> {
     const apiKey = this.config.get<string>('openRouter.apiKey')?.trim() ?? '';
     if (!apiKey) {
-      throw new ServiceUnavailableException('OpenRouter API key not configured');
+      throw new ServiceUnavailableException(
+        'OpenRouter API key not configured',
+      );
     }
     const model =
       this.config.get<string>('openRouter.model') ??
@@ -80,8 +85,10 @@ export class OpenRouterClient {
         ),
       );
 
-      const content: string | undefined =
-        response.data?.choices?.[0]?.message?.content;
+      const responseData = response.data as unknown as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const content = responseData.choices?.[0]?.message?.content;
       if (!content?.trim()) {
         throw new BadGatewayException('Empty OpenRouter response');
       }
@@ -105,7 +112,10 @@ export class OpenRouterClient {
         throw new BadRequestException('OpenRouter insufficient funds');
       }
       if (status === 429) {
-        throw new HttpException('OpenRouter rate limited', HttpStatus.TOO_MANY_REQUESTS);
+        throw new HttpException(
+          'OpenRouter rate limited',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
       if (status && status >= 500) {
         throw new BadGatewayException('OpenRouter server error');
@@ -121,16 +131,25 @@ export class OpenRouterClient {
     mimeType: string,
     schemaName: string,
     schema: Record<string, unknown>,
+    abortSignal?: AbortSignal,
   ): Promise<T> {
     const apiKey = this.config.get<string>('openRouter.apiKey')?.trim() ?? '';
     if (!apiKey) {
-      throw new ServiceUnavailableException('OpenRouter API key not configured');
+      throw new ServiceUnavailableException(
+        'OpenRouter API key not configured',
+      );
     }
     const model =
+      this.config.get<string>('openRouter.receiptModel') ??
       this.config.get<string>('openRouter.visionModel') ??
       'google/gemini-2.5-flash';
+    const timeout =
+      this.config.get<number>('openRouter.receiptTimeoutMs') ?? 15000;
+    const maxTokens =
+      this.config.get<number>('openRouter.receiptMaxTokens') ?? 900;
     const normalizedMime = normalizeReceiptImageMimeType(mimeType);
     const dataUrl = `data:${normalizedMime};base64,${imageBase64}`;
+    const startedAt = Date.now();
 
     try {
       const response = await firstValueFrom(
@@ -139,14 +158,13 @@ export class OpenRouterClient {
           {
             model,
             temperature: 0,
-            max_tokens: 1800,
+            max_tokens: maxTokens,
             stream: false,
             provider: {
               require_parameters: true,
               data_collection: 'deny',
               zdr: true,
             },
-            plugins: [{ id: 'response-healing' }],
             messages: [
               { role: 'system', content: systemPrompt },
               {
@@ -171,13 +189,18 @@ export class OpenRouterClient {
               Authorization: `Bearer ${apiKey}`,
               'Content-Type': 'application/json',
             },
-            timeout: 60000,
+            timeout,
+            signal: abortSignal,
           },
         ),
       );
 
-      const content: string | undefined =
-        response.data?.choices?.[0]?.message?.content;
+      const responseData = response.data as unknown as {
+        choices?: Array<{ message?: { content?: string } }>;
+        model?: string;
+        provider?: string;
+      };
+      const content = responseData.choices?.[0]?.message?.content;
       if (!content?.trim()) {
         throw new BadGatewayException('Empty OpenRouter response');
       }
@@ -189,9 +212,24 @@ export class OpenRouterClient {
         .replace(/\s*```$/i, '')
         .trim();
 
-      return JSON.parse(clean) as T;
+      const parsed = JSON.parse(clean) as T;
+      this.logger.log({
+        event: 'openrouter_receipt_completed',
+        elapsedMillis: Date.now() - startedAt,
+        requestedModel: model,
+        responseModel: responseData.model ?? null,
+        provider: responseData.provider ?? null,
+      });
+      return parsed;
     } catch (error: unknown) {
       if (error instanceof BadGatewayException) throw error;
+      const errorCode = (error as { code?: string })?.code;
+      if (errorCode === 'ECONNABORTED' || errorCode === 'ETIMEDOUT') {
+        throw new GatewayTimeoutException('Receipt AI request timed out');
+      }
+      if (errorCode === 'ERR_CANCELED') {
+        throw new GatewayTimeoutException('Receipt AI request canceled');
+      }
       const status = (error as { response?: { status?: number } })?.response
         ?.status;
       if (status === 401) {
@@ -201,7 +239,10 @@ export class OpenRouterClient {
         throw new BadRequestException('OpenRouter insufficient funds');
       }
       if (status === 429) {
-        throw new HttpException('OpenRouter rate limited', HttpStatus.TOO_MANY_REQUESTS);
+        throw new HttpException(
+          'OpenRouter rate limited',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
       if (status && status >= 500) {
         throw new BadGatewayException('OpenRouter server error');

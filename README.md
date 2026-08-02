@@ -65,6 +65,9 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `OPENROUTER_API_KEY`                       | For AI              | OpenRouter API key                                                      |
 | `OPENROUTER_MODEL`                         | No                  | Model id (default `google/gemini-2.5-flash-lite`)                       |
 | `OPENROUTER_VISION_MODEL`                  | No                  | Vision model for receipt extraction (default `google/gemini-2.5-flash`) |
+| `OPENROUTER_RECEIPT_MODEL`                 | No                  | Dedicated receipt model (default `google/gemini-2.5-flash`)             |
+| `OPENROUTER_RECEIPT_TIMEOUT_MS`            | No                  | Receipt provider timeout in milliseconds (default `15000`)              |
+| `OPENROUTER_RECEIPT_MAX_TOKENS`            | No                  | Maximum receipt response tokens (default `900`)                          |
 | `EXCHANGE_RATE_API_TOKEN`                  | For FX              | ExchangeRate-API v6 token                                               |
 | `RATE_LIMIT_MAX`                           | No                  | Max requests per client per window (default `50`)                       |
 | `RATE_LIMIT_TTL_MS`                        | No                  | Rate limit window in ms (default `60000`)                               |

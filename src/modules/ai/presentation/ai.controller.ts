@@ -1,4 +1,5 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -45,15 +46,31 @@ export class AiController {
   @ApiOperation({ summary: 'Extract expenses from a receipt photo' })
   @ApiOkResponse({ type: ExpenseExtractionResponseDto })
   @ApiStandardAuthResponses()
-  extractFromReceipt(
+  async extractFromReceipt(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ReceiptExtractionRequestDto,
+    @Req() request: Request,
   ) {
-    return this.aiService.extractFromReceipt(user.userId, dto);
+    const abortController = new AbortController();
+    const abort = () => abortController.abort();
+    request.once('aborted', abort);
+    request.socket.once('close', abort);
+    try {
+      return await this.aiService.extractFromReceipt(
+        user.userId,
+        dto,
+        abortController.signal,
+      );
+    } finally {
+      request.off('aborted', abort);
+      request.socket.off('close', abort);
+    }
   }
 
   @Post('leak-analysis')
-  @ApiOperation({ summary: 'Analyze leak spending for current or specified month' })
+  @ApiOperation({
+    summary: 'Analyze leak spending for current or specified month',
+  })
   @ApiOkResponse({ type: LeakAnalysisResponseDto })
   @ApiStandardAuthResponses()
   analyzeLeaks(
@@ -64,7 +81,9 @@ export class AiController {
   }
 
   @Post('monthly-report')
-  @ApiOperation({ summary: 'Generate structured monthly AI money mentor report' })
+  @ApiOperation({
+    summary: 'Generate structured monthly AI money mentor report',
+  })
   @ApiOkResponse({ type: MonthlyReportResponseDto })
   @ApiStandardAuthResponses()
   generateMonthlyReport(
