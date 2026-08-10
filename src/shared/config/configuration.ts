@@ -51,4 +51,7 @@ export default () => ({
   },
   enableSwagger:
     process.env.ENABLE_SWAGGER === 'true' || process.env.ENABLE_SWAGGER === '1',
+  devUnlockPremium:
+    process.env.DEV_UNLOCK_PREMIUM === 'true' ||
+    process.env.DEV_UNLOCK_PREMIUM === '1',
 });

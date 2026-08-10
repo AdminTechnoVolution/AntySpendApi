@@ -180,6 +180,14 @@ export class UserEntitlement {
   @Prop()
   autoRenewing?: boolean;
 
+  /** Free-tier AI usage this calendar month (see shared/billing/ai-quota.util.ts). */
+  @Prop({ default: 0 })
+  aiFreeUsageCount?: number;
+
+  /** UTC 'YYYY-MM' the count above applies to; a mismatch with the current month means it resets. */
+  @Prop()
+  aiFreeUsageMonthKey?: string;
+
   @Prop({ required: true })
   createdAtMillis!: number;
 

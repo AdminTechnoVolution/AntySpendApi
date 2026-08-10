@@ -62,6 +62,9 @@ Your task is to analyze a raw user voice transcription and extract one or more i
    - \`reviewReasons\`: List of non-empty strings detailing why review is required (e.g., "MISSING_AMOUNT", "UNMATCHED_CATEGORY", "LOW_CONFIDENCE", "POTENTIAL_PROMPT_INJECTION_DETECTED"). If \`requiresReview\` is false, this must be an empty list.
    - Populate \`fieldEvidence\` for every required field from the exact transcription fragment. Use null values when a field is absent and never invent evidence.
 
+8. **Line items**:
+   - Always set \`lineItems\` to an empty array \`[]\` for voice/text transcriptions. This field only applies to itemized receipt photos.
+
 The output JSON must strictly comply with the requested schema. Return ONLY valid JSON, do not include any markdown fences (like \`\`\`json) or leading/trailing text in the output.
 `.trim();
 
@@ -93,7 +96,7 @@ Your task is to analyze a photograph of a purchase receipt and extract exactly o
    - Analyze the complete header; the first OCR line is NOT necessarily the merchant.
    - Select the actual customer-facing business or store brand supported by image evidence. Distinguish it from slogans, legal/fiscal names, addresses, phone numbers, URLs, NIT/RFC/RUT/NIF/CUIT, receipt labels, terminal/cashier/store identifiers, dates, payment data, and promotional or thank-you text.
    - Never copy the first line merely because it appears first. Set \`store\` to null if no reliable business is identifiable.
-   - Derive \`title\` from the reliable merchant and purchase context. When merchant evidence is insufficient use a neutral localized title equivalent to “Receipt purchase”; never promote an unrelated header line into the title.
+   - Set \`title\` to a SHORT, LOCALIZED purchase-TYPE label in \`userLanguage\` — NOT the merchant name (the merchant goes in \`store\`). Derive it from the matched \`category\` and the nature of the \`lineItems\`. Examples by type (translate to \`userLanguage\`): supermarket/grocery items -> "Groceries"; restaurant, cafe, fast food, bar -> "Restaurant"; pharmacy/drugstore -> "Pharmacy"; gas station/fuel -> "Fuel"; ride-share/parking/transit -> "Transportation"; clothing/electronics/general retail -> "Shopping"; hotel/lodging -> "Lodging". When no reliable category or item evidence exists, fall back to a neutral localized title equivalent to "Receipt purchase". Never promote an unrelated header line into the title.
 
 5a. **Receipt date**:
    - Return the visible receipt date at local start of day as Unix epoch milliseconds in \`occurredAtMillis\`.
@@ -110,13 +113,19 @@ Your task is to analyze a photograph of a purchase receipt and extract exactly o
    - If matched, set \`catalogId\`, \`code\`, and \`name\` to the values from the matching catalog item.
 
 7. **Category Mapping**:
-   - Match the receipt context (merchant type, line items) against the \`categories\` catalog.
+   - Match the receipt context (merchant type, printed line items) against the \`categories\` catalog.
    - \`matchType\` must be one of:
      - \`EXACT_MATCH\`: Direct string match with category \`name\` or its \`aliases\` (case-insensitive).
      - \`SEMANTIC_MATCH\`: Contextual mapping (e.g., supermarket -> "Groceries", restaurant -> "Food & Drinks", gas station -> "Transport").
      - \`UNMATCHED\`: A category cannot be mapped to the catalog. Set \`rawValue\`, other fields null.
      - \`NOT_PROVIDED\`: Insufficient information to determine a category.
    - If matched, set \`catalogId\` and \`name\` to the values from the matching catalog item.
+   - When the merchant name alone is ambiguous, infer the category from the printed \`lineItems\` instead: raw groceries (bread, milk, eggs, produce, canned goods) -> "Groceries"; prepared meals/drinks consumed at a restaurant/cafe -> "Food & Drinks"; medicines/toiletries -> "Health"; fuel -> "Transportation".
+
+7a. **Line items**:
+   - Extract up to 20 individual products/services printed on the receipt into \`lineItems\`, each with \`name\` (short, using the receipt's own wording; keep the original language unless trivial to localize) and \`amountMajor\` (its line price as a number, or null if unreadable).
+   - Use these items both to infer \`category\`/\`title\` above and so the app can list them for the user. If the receipt does not show itemized products (e.g., a single service, toll, or parking ticket), return an empty array — never invent items that are not visibly printed.
+   - Never include subtotal, tax, tip, total, discount, or change lines as items.
 
 8. **Payment Method Mapping**:
    - Match against the \`paymentMethods\` catalog when the receipt shows payment type (e.g., "VISA", "EFECTIVO", "TARJETA").

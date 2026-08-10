@@ -105,6 +105,15 @@ export class OpenRouterClient {
       if (error instanceof BadGatewayException) throw error;
       const status = (error as { response?: { status?: number } })?.response
         ?.status;
+      const providerBody = (error as { response?: { data?: unknown } })
+        ?.response?.data;
+      this.logger.error({
+        event: 'openrouter_chat_completion_failed',
+        model,
+        status: status ?? null,
+        errorMessage: (error as { message?: string })?.message ?? null,
+        providerBody: providerBody ?? null,
+      });
       if (status === 401) {
         throw new ServiceUnavailableException('OpenRouter unauthorized');
       }

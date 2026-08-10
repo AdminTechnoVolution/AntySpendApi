@@ -91,6 +91,19 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
             maxItems: 5,
             items: { type: 'string', maxLength: 60 },
           },
+          lineItems: {
+            type: 'array',
+            maxItems: 20,
+            items: {
+              type: 'object',
+              properties: {
+                name: { type: 'string', maxLength: 80 },
+                amountMajor: { type: ['number', 'null'] },
+              },
+              required: ['name', 'amountMajor'],
+              additionalProperties: false,
+            },
+          },
           fieldEvidence: {
             type: 'object',
             properties: {
@@ -124,6 +137,7 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
           'confidence',
           'requiresReview',
           'reviewReasons',
+          'lineItems',
           'fieldEvidence',
         ],
         additionalProperties: false,

@@ -224,6 +224,55 @@ describe('AiService.extractFromReceipt', () => {
       }),
     ).rejects.toThrow('Invalid AI response');
   });
+
+  it('requires lineItems in the receipt JSON schema for itemized products', () => {
+    const expenseItemSchema = (
+      EXPENSE_EXTRACTION_JSON_SCHEMA.properties.expenses.items as {
+        properties: { lineItems: unknown };
+        required: string[];
+      }
+    ).properties.lineItems;
+
+    expect(expenseItemSchema).toBeDefined();
+    expect(
+      (
+        EXPENSE_EXTRACTION_JSON_SCHEMA.properties.expenses
+          .items as unknown as { required: string[] }
+      ).required,
+    ).toContain('lineItems');
+  });
+
+  it('passes AI-extracted line items through to the response untouched', async () => {
+    chatCompletionJsonWithImage.mockResolvedValueOnce({
+      expenses: [
+        {
+          title: 'Groceries',
+          store: 'Fresh Market',
+          amount: 18.4,
+          confidence: 0.94,
+          requiresReview: false,
+          reviewReasons: [],
+          lineItems: [
+            { name: 'Milk', amountMajor: 3.2 },
+            { name: 'Bread', amountMajor: 2.1 },
+            { name: 'Eggs', amountMajor: 4.5 },
+          ],
+        },
+      ],
+    });
+
+    const result = await service.extractFromReceipt('user-1', {
+      imageBase64: tinyPngBase64,
+      mimeType: 'png',
+      userLanguage: 'en',
+    });
+
+    expect(result.expenses[0].lineItems).toEqual([
+      { name: 'Milk', amountMajor: 3.2 },
+      { name: 'Bread', amountMajor: 2.1 },
+      { name: 'Eggs', amountMajor: 4.5 },
+    ]);
+  });
 });
 
 describe('AiService.generateMonthlyReport', () => {

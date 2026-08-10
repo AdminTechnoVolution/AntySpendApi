@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { OpenRouterModule } from '../../shared/openrouter/openrouter.module';
+import { HouseholdsModule } from '../households/households.module';
 import {
   Category,
   CategorySchema,
@@ -15,10 +16,13 @@ import {
 } from '../../shared/database/entity.schemas';
 import { AiService } from './application/ai.service';
 import { AiController } from './presentation/ai.controller';
+import { AiUsageQuotaGuard } from '../../shared/auth/ai-usage-quota.guard';
+import { AiUsageQuotaInterceptor } from '../../shared/auth/ai-usage-quota.interceptor';
 
 @Module({
   imports: [
     OpenRouterModule,
+    HouseholdsModule,
     MongooseModule.forFeature([
       { name: Currency.name, schema: CurrencySchema },
       { name: Category.name, schema: CategorySchema },
@@ -28,6 +32,6 @@ import { AiController } from './presentation/ai.controller';
     ]),
   ],
   controllers: [AiController],
-  providers: [AiService],
+  providers: [AiService, AiUsageQuotaGuard, AiUsageQuotaInterceptor],
 })
 export class AiModule {}

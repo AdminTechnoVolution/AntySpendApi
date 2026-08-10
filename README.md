@@ -72,6 +72,7 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `RATE_LIMIT_MAX`                           | No                  | Max requests per client per window (default `50`)                       |
 | `RATE_LIMIT_TTL_MS`                        | No                  | Rate limit window in ms (default `60000`)                               |
 | `ENABLE_SWAGGER`                           | No                  | Expose `/docs` and OpenAPI JSON (default `false`)                       |
+| `DEV_UNLOCK_PREMIUM`                       | No                  | Local testing only: grants every user an active Family entitlement without a real Play purchase (default `false`; ignored when `NODE_ENV=production`) |
 | `GOOGLE_PLAY_PACKAGE_NAME`                 | For billing         | Android app id (default `com.technovolution.antyspend`)                 |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64`  | For billing (prod)  | Base64-encoded Play service account JSON (Azure App Settings)           |
 | `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`         | For billing (local) | Filesystem path or inline JSON; leave empty in prod when using Base64   |

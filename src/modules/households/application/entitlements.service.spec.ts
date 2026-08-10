@@ -200,6 +200,9 @@ describe('EntitlementsService', () => {
         autoRenewing: null,
         premiumAccessActive: false,
         familyPlanBeneficiary: false,
+        aiFreeUsageUsed: 0,
+        aiFreeUsageLimit: 5,
+        aiFreeUsageResetsAtMillis: expect.any(Number),
       });
     });
 
@@ -333,6 +336,101 @@ describe('EntitlementsService', () => {
       expect(result.planType).toBe(PLAN_TYPE.FAMILY);
       expect(result.status).toBe(ENTITLEMENT_STATUS.CANCELED);
       expect(result.premiumAccessActive).toBe(false);
+    });
+  });
+
+  describe('DEV_UNLOCK_PREMIUM bypass', () => {
+    it('returns a synthetic active Family entitlement when enabled in development', async () => {
+      configGet.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'development';
+        if (key === 'devUnlockPremium') return true;
+        return undefined;
+      });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.active).toBe(true);
+      expect(result.planType).toBe(PLAN_TYPE.FAMILY);
+      expect(result.premiumAccessActive).toBe(true);
+      expect(result.source).toBe('DEV_LOCAL');
+      expect(findOne).not.toHaveBeenCalled();
+    });
+
+    it('never bypasses when NODE_ENV=production, even if the flag is set', async () => {
+      configGet.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'production';
+        if (key === 'devUnlockPremium') return true;
+        return undefined;
+      });
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.premiumAccessActive).toBe(false);
+      expect(result.source).not.toBe('DEV_LOCAL');
+      expect(findOne).toHaveBeenCalled();
+    });
+
+    it('stays disabled by default when the flag is unset', async () => {
+      configGet.mockImplementation((key: string) => {
+        if (key === 'NODE_ENV') return 'development';
+        return undefined;
+      });
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+      const result = await service.getMyEntitlement(userId);
+
+      expect(result.premiumAccessActive).toBe(false);
+      expect(findOne).toHaveBeenCalled();
+    });
+  });
+
+  describe('getOrResetMonthlyAiUsage', () => {
+    it('starts a brand-new user at count 0 for the current month', async () => {
+      findOneAndUpdate
+        .mockResolvedValueOnce(undefined) // ensure-doc-exists upsert
+        .mockResolvedValueOnce({ aiFreeUsageCount: 0 }); // conditional reset matched (no prior monthKey)
+
+      const result = await service.getOrResetMonthlyAiUsage(userId);
+
+      expect(result.count).toBe(0);
+      expect(result.monthKey).toMatch(/^\d{4}-\d{2}$/);
+    });
+
+    it('resets the counter to 0 when the stored month is stale', async () => {
+      findOneAndUpdate
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ aiFreeUsageCount: 0, aiFreeUsageMonthKey: 'stale' });
+
+      const result = await service.getOrResetMonthlyAiUsage(userId);
+
+      expect(result.count).toBe(0);
+    });
+
+    it('keeps the existing count when the stored month matches the current month', async () => {
+      findOneAndUpdate
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(null); // conditional reset does NOT match -> same month
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ aiFreeUsageCount: 2 }),
+      });
+
+      const result = await service.getOrResetMonthlyAiUsage(userId);
+
+      expect(result.count).toBe(2);
+    });
+  });
+
+  describe('recordFreeAiUsage', () => {
+    it('increments the counter scoped to the given monthKey', async () => {
+      updateOne.mockResolvedValue({ modifiedCount: 1 });
+
+      await service.recordFreeAiUsage(userId, '2026-08');
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { userId, aiFreeUsageMonthKey: '2026-08' },
+        expect.objectContaining({ $inc: { aiFreeUsageCount: 1 } }),
+      );
     });
   });
 

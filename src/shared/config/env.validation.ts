@@ -33,6 +33,13 @@ export const envValidationSchema = Joi.object({
     .truthy('true', '1')
     .falsy('false', '0')
     .default(false),
+  // Local-only testing bypass: grants every authenticated user an active Family
+  // entitlement without a real Play purchase. Ignored outside NODE_ENV=development
+  // (see EntitlementsService.isDevUnlockEnabled) — never usable in production.
+  DEV_UNLOCK_PREMIUM: Joi.boolean()
+    .truthy('true', '1')
+    .falsy('false', '0')
+    .default(false),
   GOOGLE_PLAY_PACKAGE_NAME: Joi.string().default(
     'com.technovolution.antyspend',
   ),
@@ -68,6 +75,7 @@ export type EnvConfig = {
   RATE_LIMIT_MAX: number;
   RATE_LIMIT_TTL_MS: number;
   ENABLE_SWAGGER: boolean;
+  DEV_UNLOCK_PREMIUM: boolean;
   GOOGLE_PLAY_PACKAGE_NAME: string;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: string;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: string;

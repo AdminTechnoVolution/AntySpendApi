@@ -1,4 +1,11 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import {
   ApiBearerAuth,
@@ -6,7 +13,9 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
+import { JwtAuthGuard, SkipSubscriptionCheck } from '../../../shared/auth/jwt-auth.guard';
+import { AiUsageQuotaGuard } from '../../../shared/auth/ai-usage-quota.guard';
+import { AiUsageQuotaInterceptor } from '../../../shared/auth/ai-usage-quota.interceptor';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
 import {
@@ -26,7 +35,9 @@ import {
 
 @ApiTags('ai')
 @ApiBearerAuth(BEARER_AUTH_SCHEME)
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, AiUsageQuotaGuard)
+@UseInterceptors(AiUsageQuotaInterceptor)
+@SkipSubscriptionCheck() // AI routes have their own free-quota gate (AiUsageQuotaGuard) instead of a hard subscription requirement
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}

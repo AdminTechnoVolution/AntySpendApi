@@ -209,13 +209,29 @@ export class AiService {
       systemPrompt += `\n\n### LANGUAGE REQUIREMENT:\nThe user's phone language is '${input.userLanguage}'. You MUST translate or generate all user-facing text fields (like \`title\` and explanation descriptions inside \`reviewReasons\`) in this language ('${input.userLanguage}').`;
     }
 
-    const result =
-      await this.openRouter.chatCompletionJson<ExpenseExtractionNetworkResult>(
-        systemPrompt,
-        JSON.stringify(input),
-        'expense_extraction_response',
-        EXPENSE_EXTRACTION_JSON_SCHEMA,
-      );
+    const startedAt = Date.now();
+    let result: ExpenseExtractionNetworkResult;
+    try {
+      result =
+        await this.openRouter.chatCompletionJson<ExpenseExtractionNetworkResult>(
+          systemPrompt,
+          JSON.stringify(input),
+          'expense_extraction_response',
+          EXPENSE_EXTRACTION_JSON_SCHEMA,
+        );
+    } catch (error: unknown) {
+      const status =
+        typeof (error as { getStatus?: unknown })?.getStatus === 'function'
+          ? (error as { getStatus: () => number }).getStatus()
+          : null;
+      this.logger.warn({
+        event: 'expense_extraction_failed',
+        totalMillis: Date.now() - startedAt,
+        textLength: dto.text.length,
+        status,
+      });
+      throw error;
+    }
 
     if (!result.expenses) {
       throw new BadRequestException('Invalid AI response');
