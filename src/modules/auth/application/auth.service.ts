@@ -94,73 +94,78 @@ export class AuthService {
     const hash = this.hashToken(refreshToken);
     const now = Date.now();
 
-    const stored = await this.refreshTokenModel.findOneAndUpdate(
-      {
-        tokenHash: hash,
-        revoked: false,
-      },
-      { $set: { revoked: true } },
-      { returnDocument: 'before' },
-    );
-
-    if (!stored) {
-      const revoked = await this.refreshTokenModel.findOne({
-        tokenHash: hash,
-        revoked: true,
-      });
-      const cached = revoked?.rotationResult;
-      if (
-        cached &&
-        now - cached.issuedAtMillis <= REFRESH_IDEMPOTENCY_WINDOW_MS
-      ) {
-        const user = await this.userModel.findById(payload.sub).lean();
-        if (!user) {
-          throw new UnauthorizedException('User not found');
-        }
-        return {
-          accessToken: cached.accessToken,
-          refreshToken: cached.refreshToken,
-          user: {
-            id: user._id.toString(),
-            email: user.email,
-            name: user.name,
-            picture: user.picture,
-          },
-        };
-      }
-      throw new UnauthorizedException('Refresh token expired or revoked');
-    }
-
-    if (stored.expiresAt <= new Date()) {
-      throw new UnauthorizedException('Refresh token expired or revoked');
-    }
-
-    const user = await this.userModel.findById(payload.sub);
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    const tokens = await this.issueTokens(user._id.toString(), user.email, {
-      id: user._id.toString(),
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
+    const existing = await this.refreshTokenModel.findOne({
+      tokenHash: hash,
     });
+    if (!existing) {
+      throw new UnauthorizedException('Refresh token expired or revoked');
+    }
 
-    await this.refreshTokenModel.updateOne(
-      { tokenHash: hash },
-      {
-        $set: {
-          rotationResult: {
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            issuedAtMillis: now,
+    if (!existing.revoked) {
+      if (existing.expiresAt <= new Date()) {
+        throw new UnauthorizedException('Refresh token expired or revoked');
+      }
+
+      const user = await this.userModel.findById(payload.sub);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      const tokens = await this.issueTokens(user._id.toString(), user.email, {
+        id: user._id.toString(),
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      });
+
+      // Revoke and cache the rotation result in one atomic write, so a concurrent caller
+      // that loses this race can never observe "revoked" without a usable rotationResult.
+      const updated = await this.refreshTokenModel.findOneAndUpdate(
+        { tokenHash: hash, revoked: false },
+        {
+          $set: {
+            revoked: true,
+            rotationResult: {
+              accessToken: tokens.accessToken,
+              refreshToken: tokens.refreshToken,
+              issuedAtMillis: now,
+            },
           },
         },
-      },
-    );
+        { returnDocument: 'after' },
+      );
+      if (updated) {
+        return tokens;
+      }
+      // Lost the race between our read and this write — fall through to the shared
+      // rotationResult below, which the winner is guaranteed to have written atomically.
+    }
 
-    return tokens;
+    const revoked = await this.refreshTokenModel.findOne({
+      tokenHash: hash,
+      revoked: true,
+    });
+    const cached = revoked?.rotationResult;
+    if (
+      cached &&
+      now - cached.issuedAtMillis <= REFRESH_IDEMPOTENCY_WINDOW_MS
+    ) {
+      const user = await this.userModel.findById(payload.sub).lean();
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+      return {
+        accessToken: cached.accessToken,
+        refreshToken: cached.refreshToken,
+        user: {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+        },
+      };
+    }
+    throw new UnauthorizedException('Refresh token expired or revoked');
   }
 
   async logout(refreshToken: string) {

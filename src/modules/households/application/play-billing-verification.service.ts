@@ -29,6 +29,13 @@ export interface VerifiedSubscriptionV2 {
   orderId: string;
   productId: string;
   subscriptionState: string;
+  /**
+   * Internal AntySpend userId, set as Play Billing's `obfuscatedAccountId` when the purchase was
+   * launched (see `PlayBillingClientManager.launchBillingFlow`). Lets RTDN notifications — which
+   * otherwise only carry a purchase token, not a user — attribute a purchase to a user without
+   * ever needing the client to successfully call verify-purchase first.
+   */
+  obfuscatedExternalAccountId?: string;
 }
 
 @Injectable()
@@ -73,6 +80,28 @@ export class PlayBillingVerificationService {
     return this.androidPublisher;
   }
 
+  /**
+   * Google Play's purchase data can be briefly eventually-consistent right after a purchase is
+   * made (an immediate `subscriptionsv2.get` can return no line items — surfacing here as
+   * `INVALID_PURCHASE` — or the API can return a transient 5xx/network error). A few short
+   * retries absorb that window; a genuinely invalid token just fails the same way each attempt.
+   */
+  private async withTransientRetry<T>(operation: () => Promise<T>): Promise<T> {
+    const delaysMs = [300, 800];
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= delaysMs.length; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        if (attempt < delaysMs.length) {
+          await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
+        }
+      }
+    }
+    throw lastError;
+  }
+
   async verifySubscriptionV2(
     purchaseToken: string,
   ): Promise<VerifiedSubscriptionV2> {
@@ -84,18 +113,19 @@ export class PlayBillingVerificationService {
     }
 
     const client = this.getClient();
-    const response = await client.purchases.subscriptionsv2.get({
-      packageName,
-      token: purchaseToken,
+    const data = await this.withTransientRetry(async () => {
+      const response = await client.purchases.subscriptionsv2.get({
+        packageName,
+        token: purchaseToken,
+      });
+      if (!response.data.lineItems?.[0]?.expiryTime) {
+        throw new BadRequestException('INVALID_PURCHASE');
+      }
+      return response.data;
     });
 
-    const data = response.data;
-    const lineItem = data.lineItems?.[0];
-    if (!lineItem?.expiryTime) {
-      throw new BadRequestException('INVALID_PURCHASE');
-    }
-
-    const expiryTimeMillis = new Date(lineItem.expiryTime).getTime();
+    const lineItem = data.lineItems![0];
+    const expiryTimeMillis = new Date(lineItem.expiryTime!).getTime();
     if (Number.isNaN(expiryTimeMillis)) {
       throw new BadRequestException('INVALID_PURCHASE');
     }
@@ -106,6 +136,9 @@ export class PlayBillingVerificationService {
       orderId: data.latestOrderId ?? '',
       productId: lineItem.productId ?? '',
       subscriptionState: data.subscriptionState ?? '',
+      obfuscatedExternalAccountId:
+        data.externalAccountIdentifiers?.obfuscatedExternalAccountId ??
+        undefined,
     };
   }
 
@@ -141,16 +174,17 @@ export class PlayBillingVerificationService {
     }
 
     const client = this.getClient();
-    const response = await client.purchases.subscriptions.get({
-      packageName,
-      subscriptionId: productId,
-      token: purchaseToken,
+    const data = await this.withTransientRetry(async () => {
+      const response = await client.purchases.subscriptions.get({
+        packageName,
+        subscriptionId: productId,
+        token: purchaseToken,
+      });
+      if (!response.data.expiryTimeMillis) {
+        throw new BadRequestException('INVALID_PURCHASE');
+      }
+      return response.data;
     });
-
-    const data = response.data;
-    if (!data.expiryTimeMillis) {
-      throw new BadRequestException('INVALID_PURCHASE');
-    }
 
     return {
       expiryTimeMillis: Number(data.expiryTimeMillis),

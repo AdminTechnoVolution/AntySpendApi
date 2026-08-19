@@ -38,7 +38,7 @@ export default () => ({
       10,
     ),
     receiptMaxTokens: parseInt(
-      process.env.OPENROUTER_RECEIPT_MAX_TOKENS ?? '900',
+      process.env.OPENROUTER_RECEIPT_MAX_TOKENS ?? '1600',
       10,
     ),
   },

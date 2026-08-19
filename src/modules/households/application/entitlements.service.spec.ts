@@ -589,8 +589,16 @@ describe('EntitlementsService', () => {
   });
 
   describe('syncEntitlementFromPlayByToken', () => {
-    it('skips when no entitlement exists for purchase token', async () => {
+    it('skips when no entitlement exists and the purchase has no obfuscatedAccountId', async () => {
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
       findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      verifySubscriptionV2.mockResolvedValue({
+        expiryTimeMillis: futureExpiry,
+        autoRenewing: true,
+        orderId: 'GPA.unknown',
+        productId: PLAY_PRODUCT_PERSONAL,
+        subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+      });
 
       await service.syncEntitlementFromPlayByToken(
         'unknown-token',
@@ -598,8 +606,39 @@ describe('EntitlementsService', () => {
         RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_RENEWED,
       );
 
-      expect(verifySubscriptionV2).not.toHaveBeenCalled();
+      expect(verifySubscriptionV2).toHaveBeenCalled();
       expect(updateOne).not.toHaveBeenCalled();
+    });
+
+    it('creates an entitlement from RTDN alone when the purchase carries an obfuscatedAccountId', async () => {
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      verifySubscriptionV2.mockResolvedValue({
+        expiryTimeMillis: futureExpiry,
+        autoRenewing: true,
+        orderId: 'GPA.self-healed',
+        productId: PLAY_PRODUCT_PERSONAL,
+        subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+        obfuscatedExternalAccountId: userId,
+      });
+
+      await service.syncEntitlementFromPlayByToken(
+        'never-verified-token',
+        PLAY_PRODUCT_PERSONAL,
+        RTDN_NOTIFICATION_TYPE.SUBSCRIPTION_PURCHASED,
+      );
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { userId },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            googlePlayPurchaseToken: 'never-verified-token',
+            googlePlayOrderId: 'GPA.self-healed',
+          }),
+          $setOnInsert: expect.objectContaining({ userId }),
+        }),
+        { upsert: true },
+      );
     });
 
     it('re-verifies Play and updates entitlement on renewal', async () => {

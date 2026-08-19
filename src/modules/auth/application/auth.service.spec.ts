@@ -180,14 +180,99 @@ describe('AuthService profile', () => {
   });
 
   describe('refresh', () => {
-    it('rejects expired refresh token after revoke attempt', async () => {
+    beforeEach(() => {
       jwtService.verifyAsync.mockResolvedValue({
         sub: userId,
         type: 'refresh',
       });
-      refreshTokenModel.findOneAndUpdate.mockResolvedValue({
+    });
+
+    it('rejects an unknown refresh token', async () => {
+      refreshTokenModel.findOne.mockResolvedValue(null);
+
+      await expect(service.refresh('refresh-jwt')).rejects.toThrow(
+        'Refresh token expired or revoked',
+      );
+      expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('rejects an expired, not-yet-revoked refresh token', async () => {
+      refreshTokenModel.findOne.mockResolvedValue({
+        revoked: false,
         expiresAt: new Date(Date.now() - 60_000),
       });
+
+      await expect(service.refresh('refresh-jwt')).rejects.toThrow(
+        'Refresh token expired or revoked',
+      );
+      expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('issues new tokens and atomically revokes+caches the rotation result', async () => {
+      refreshTokenModel.findOne.mockResolvedValue({
+        revoked: false,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      findById.mockResolvedValue({
+        _id: { toString: () => userId },
+        email: googleProfile.email,
+        name: 'Google Name',
+        picture: googleProfile.picture,
+      });
+      refreshTokenModel.findOneAndUpdate.mockResolvedValue({ _id: 'doc' });
+
+      const result = await service.refresh('refresh-jwt');
+
+      expect(result.accessToken).toBe('token');
+      expect(refreshTokenModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { tokenHash: expect.any(String), revoked: false },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            revoked: true,
+            rotationResult: expect.objectContaining({
+              accessToken: 'token',
+              refreshToken: 'token',
+            }),
+          }),
+        }),
+        { returnDocument: 'after' },
+      );
+    });
+
+    it('reuses the winning rotation result when it loses the concurrent-refresh race', async () => {
+      // The token is already revoked by a sibling request, and its atomically-written
+      // rotationResult is present — this must succeed instead of throwing 401, which is
+      // exactly the race that used to log users out unexpectedly.
+      refreshTokenModel.findOne
+        .mockResolvedValueOnce({ revoked: true }) // first lookup: already revoked
+        .mockResolvedValueOnce({
+          revoked: true,
+          rotationResult: {
+            accessToken: 'winner-access',
+            refreshToken: 'winner-refresh',
+            issuedAtMillis: Date.now(),
+          },
+        });
+      findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          _id: { toString: () => userId },
+          email: googleProfile.email,
+          name: 'Google Name',
+          picture: googleProfile.picture,
+        }),
+      });
+
+      const result = await service.refresh('refresh-jwt');
+
+      expect(result.accessToken).toBe('winner-access');
+      expect(result.refreshToken).toBe('winner-refresh');
+      expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+
+    it('rejects when revoked with a stale or missing rotation result', async () => {
+      refreshTokenModel.findOne
+        .mockResolvedValueOnce({ revoked: true })
+        .mockResolvedValueOnce({ revoked: true, rotationResult: undefined });
 
       await expect(service.refresh('refresh-jwt')).rejects.toThrow(
         'Refresh token expired or revoked',

@@ -279,12 +279,6 @@ export class EntitlementsService {
     const existing = await this.entitlementModel
       .findOne({ googlePlayPurchaseToken: purchaseToken })
       .lean();
-    if (!existing) {
-      this.logger.log(
-        `No entitlement for purchaseToken; skipping RTDN sync (await verify-purchase)`,
-      );
-      return;
-    }
 
     const verified = await this.playBilling.verifySubscriptionV2(purchaseToken);
     const resolvedProductId = verified.productId || productId;
@@ -298,6 +292,44 @@ export class EntitlementsService {
       verified.autoRenewing,
       now,
     );
+
+    if (!existing) {
+      // No entitlement yet for this purchase token — this is the case where the client never
+      // completed verify-purchase (app closed/crashed right after buying, offline, etc). Without
+      // an obfuscatedAccountId set at purchase time we still can't attribute this purchase to a
+      // user, so there is nothing safe to create; verify-purchase (or its background retry) is
+      // still the path that resolves it. When the account id IS present, RTDN becomes a genuine
+      // fallback and creates the entitlement itself.
+      const userId = verified.obfuscatedExternalAccountId;
+      if (!userId) {
+        this.logger.log(
+          'No entitlement for purchaseToken and no obfuscatedAccountId on the purchase; skipping RTDN sync (await verify-purchase)',
+        );
+        return;
+      }
+      await this.entitlementModel.updateOne(
+        { userId },
+        {
+          $set: {
+            planType,
+            source: ENTITLEMENT_SOURCE.PLAY_STORE,
+            status,
+            googlePlayProductId: resolvedProductId,
+            googlePlayPurchaseToken: purchaseToken,
+            googlePlayOrderId: verified.orderId,
+            autoRenewing: verified.autoRenewing,
+            expiresAtMillis,
+            updatedAtMillis: now,
+          },
+          $setOnInsert: {
+            userId,
+            createdAtMillis: now,
+          },
+        },
+        { upsert: true },
+      );
+      return;
+    }
 
     await this.entitlementModel.updateOne(
       { googlePlayPurchaseToken: purchaseToken },
