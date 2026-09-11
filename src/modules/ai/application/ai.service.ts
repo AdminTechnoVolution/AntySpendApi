@@ -545,8 +545,8 @@ export class AiService {
         return {
           id: parseInt(t.id.slice(0, 8), 16) % 1000000,
           title: t.title ?? 'Transaction',
-          amount: t.primaryAmountMinor / 100,
-          currencyCode: t.primaryCurrencyCode,
+          amount: this.originalMajor(t.originalAmountMinor, t.originalCurrencyCode),
+          currencyCode: t.originalCurrencyCode,
           categoryName: cat?.customName ?? cat?.key ?? 'Other',
           daysAgo,
           occurredAtMillis: t.occurredAtMillis,
@@ -670,8 +670,8 @@ export class AiService {
         return {
           id: parseInt(t.id.slice(0, 8), 16) % 1000000,
           title: t.title ?? 'Transaction',
-          amount: t.primaryAmountMinor / 100,
-          currencyCode: t.primaryCurrencyCode,
+          amount: this.originalMajor(t.originalAmountMinor, t.originalCurrencyCode),
+          currencyCode: t.originalCurrencyCode,
           categoryName: cat?.customName ?? cat?.key ?? 'Other',
           daysAgo,
           occurredAtMillis: t.occurredAtMillis,
@@ -758,10 +758,16 @@ export class AiService {
     };
   }
 
+  private originalMajor(amountMinor: number, currencyCode: string): number {
+    const minorUnits = currencyCode === "COP" ? 0 : new Intl.NumberFormat("en", { style: "currency", currency: currencyCode }).resolvedOptions().maximumFractionDigits;
+    return amountMinor / 10 ** (minorUnits ?? 2);
+  }
+
   private buildMonthSummaryFromTransactions(
     transactions: Array<{
       type?: string;
-      primaryAmountMinor: number;
+      primaryAmountMinor?: number | null;
+      primaryCurrencyCode?: string;
       categoryId?: string;
     }>,
     categoryMap: Map<string, { customName?: string; key?: string }>,
@@ -771,7 +777,8 @@ export class AiService {
     let totalIncome = 0;
     const byCategory = new Map<string, number>();
     for (const t of transactions) {
-      const amount = t.primaryAmountMinor / 100;
+      if (t.primaryAmountMinor == null || (t.primaryCurrencyCode && t.primaryCurrencyCode !== currencyCode)) continue;
+      const amount = this.originalMajor(t.primaryAmountMinor, currencyCode);
       const txType = (t.type ?? 'EXPENSE').toUpperCase();
       if (txType === 'INCOME') {
         totalIncome += amount;

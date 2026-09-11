@@ -151,6 +151,7 @@ The output JSON must strictly comply with the requested schema. Return ONLY vali
 `.trim();
 
 export const LEAK_ANALYSIS_SYSTEM_PROMPT = `
+Never invent exchange rates or convert amounts. Keep amounts and recommendations in their supplied currencies. Never add different currencies into a combined total.
 You are an expert financial auditor specializing in identifying leak spending (also known as "Gastos Hormiga" or micro-expenses, recurring unused subscriptions, dining out/coffee habits, transit patterns, and incremental emotional purchases) for the AntySpend app.
 
 Your task is to analyze a user's transaction history (provided as a list of MinimalTransactions) and active recurring expenses (provided as a list of MinimalRecurringExpenses) and produce a detailed leak audit report in JSON format.
@@ -201,6 +202,7 @@ Return ONLY valid JSON. Do not write any markdown blocks (such as \`\`\`json) or
 `.trim();
 
 export const MONTHLY_REPORT_SYSTEM_PROMPT = `
+Never invent exchange rates or convert amounts. Use totalsByCurrency to report each currency separately. Compare periods only within the same currency; any top-level primary-currency summary excludes transactions without an equivalent. Never imply such a partial summary includes all spending.
 You are a personal finance mentor for the Anty Spend app. Produce a structured monthly money report in JSON — actionable coaching, not open-ended chat.
 
 ### Input

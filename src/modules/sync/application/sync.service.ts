@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { LwwService } from '../../../shared/sync/lww.service';
@@ -30,6 +30,8 @@ import {
   BudgetMemberQuotaDocument,
   DebtAccount,
   DebtAccountDocument,
+  DebtMovement,
+  DebtMovementDocument,
   Merchant,
   MerchantDocument,
   RecurringExpense,
@@ -82,6 +84,9 @@ export class SyncService {
     debtAccountModel: Model<DebtAccountDocument>,
     private readonly lwwService: LwwService,
     private readonly householdAuthz: HouseholdAuthzService,
+    @Optional()
+    @InjectModel(DebtMovement.name)
+    debtMovementModel: Model<DebtMovementDocument> = debtAccountModel as unknown as Model<DebtMovementDocument>,
   ) {
     this.entityMap = {
       settings: settingsModel as unknown as EntityModel,
@@ -100,6 +105,7 @@ export class SyncService {
       settlements: settlementModel as unknown as EntityModel,
       budget_member_quotas: budgetMemberQuotaModel as unknown as EntityModel,
       debt_accounts: debtAccountModel as unknown as EntityModel,
+      debt_movements: debtMovementModel as unknown as EntityModel,
     };
   }
 

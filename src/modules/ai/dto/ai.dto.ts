@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
@@ -212,7 +212,24 @@ export class MonthlyReportCategoryTotalDto {
   amountMajor!: number;
 }
 
+export class MonthlyReportCurrencyTotalDto {
+  @IsString()
+  currencyCode!: string;
+
+  @IsNumber()
+  totalIncomeMajor!: number;
+
+  @IsNumber()
+  totalExpenseMajor!: number;
+}
+
 export class MonthlyReportMonthSummaryDto {
+  @ApiPropertyOptional({ type: [MonthlyReportCurrencyTotalDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MonthlyReportCurrencyTotalDto)
+  totalsByCurrency?: MonthlyReportCurrencyTotalDto[];
   @ApiProperty()
   @IsNumber()
   totalExpenseMajor!: number;

@@ -158,8 +158,8 @@ export class TransactionDto extends SyncableFieldsDto {
   @ApiProperty()
   originalCurrencyCode!: string;
 
-  @ApiProperty()
-  primaryAmountMinor!: number;
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  primaryAmountMinor?: number | null;
 
   @ApiProperty()
   primaryCurrencyCode!: string;
@@ -232,8 +232,8 @@ export class CreateTransactionDto {
   @ApiProperty()
   originalCurrencyCode!: string;
 
-  @ApiProperty()
-  primaryAmountMinor!: number;
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  primaryAmountMinor?: number | null;
 
   @ApiProperty()
   primaryCurrencyCode!: string;

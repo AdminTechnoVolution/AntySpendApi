@@ -135,8 +135,8 @@ export class Transaction extends SyncableEntity {
   @Prop({ required: true })
   originalCurrencyCode!: string;
 
-  @Prop({ required: true })
-  primaryAmountMinor!: number;
+  @Prop({ type: Number, required: false, default: null })
+  primaryAmountMinor!: number | null;
 
   @Prop({ required: true })
   primaryCurrencyCode!: string;
@@ -336,6 +336,8 @@ householdShareableIndexes(BudgetMemberQuotaSchema);
 
 @Schema({ collection: 'debt_accounts' })
 export class DebtAccount extends SyncableEntity {
+  @Prop()
+  controlJson?: string;
   @Prop({ required: true })
   name!: string;
 
@@ -362,6 +364,20 @@ export type DebtAccountDocument = HydratedDocument<DebtAccount>;
 export const DebtAccountSchema = SchemaFactory.createForClass(DebtAccount);
 syncableIndexes(DebtAccountSchema);
 householdShareableIndexes(DebtAccountSchema);
+
+@Schema({ collection: 'debt_movements' })
+export class DebtMovement extends SyncableEntity {
+  @Prop({ required: true })
+  debtServerId!: string;
+
+  @Prop({ required: true })
+  movementJson!: string;
+}
+
+export type DebtMovementDocument = HydratedDocument<DebtMovement>;
+export const DebtMovementSchema = SchemaFactory.createForClass(DebtMovement);
+syncableIndexes(DebtMovementSchema);
+householdShareableIndexes(DebtMovementSchema);
 
 @Schema({ collection: 'recurring_expenses' })
 export class RecurringExpense extends SyncableEntity {

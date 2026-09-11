@@ -8,6 +8,7 @@ export const OWNER_ONLY_SHARED_ENTITY_TYPES = new Set([
   'savings_plans',
   'investments',
   'debt_accounts',
+  'debt_movements',
 ]);
 
 export const MEMBER_CONTRIBUTION_ENTITY_TYPES = new Set([

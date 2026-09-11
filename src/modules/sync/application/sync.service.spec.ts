@@ -184,6 +184,42 @@ describe('SyncService push idempotency', () => {
     expect(updateArg.$set.meta).toEqual({ ok: true });
   });
 
+  it('persists explicit null conversion fields for transactions', async () => {
+    findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+    (lwwService.decide as jest.Mock).mockReturnValue({ outcome: 'accept' });
+    findOneAndUpdate.mockResolvedValue({});
+
+    await service.push('user-1', {
+      changes: [{
+        entityType: 'transactions',
+        entityId: WALLET_ID,
+        updatedAtMillis: 2000,
+        payload: {
+          originalAmountMinor: 1000,
+          originalCurrencyCode: 'EUR',
+          primaryAmountMinor: null,
+          primaryCurrencyCode: 'COP',
+          usdAmountMinor: null,
+          usdCurrencyCode: null,
+          exchangeRate: null,
+        },
+      }],
+    });
+
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          primaryAmountMinor: null,
+          usdAmountMinor: null,
+          usdCurrencyCode: null,
+          exchangeRate: null,
+        }),
+      }),
+      expect.anything(),
+    );
+  });
+
   it('rejects shared entity push when user is not a household member', async () => {
     (householdAuthz.resolveHouseholdId as jest.Mock).mockReturnValue(
       HOUSEHOLD_ID,
