@@ -167,7 +167,7 @@ export class EntitlementsService {
           updatedAtMillis: Date.now(),
         },
       },
-      { new: true },
+      { returnDocument: 'after' },
     );
     if (reset) {
       return { count: 0, monthKey };
