@@ -20,7 +20,7 @@ export class ExchangeRatesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth(BEARER_AUTH_SCHEME)
   @ApiOperation({
-    summary: 'Get latest USD-based exchange rates (Mongo cache, 1 snapshot/día UTC)',
+    summary: 'Get latest USD-based exchange rates (Mongo cache, 3 franjas/día según zona del servidor)',
   })
   @ApiOkResponse({ type: ExchangeRatesResponseDto })
   @ApiStandardAuthResponses()

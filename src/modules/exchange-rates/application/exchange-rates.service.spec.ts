@@ -1,7 +1,7 @@
 import { of } from 'rxjs';
 import { ExchangeRatesService } from './exchange-rates.service';
 
-describe('ExchangeRatesService daily cache', () => {
+describe('ExchangeRatesService three daily windows', () => {
   const findOne = jest.fn();
   const findOneAndUpdate = jest.fn();
   const snapshotModel = { findOne, findOneAndUpdate };
@@ -16,8 +16,8 @@ describe('ExchangeRatesService daily cache', () => {
 
   const dayOneMillis = Date.UTC(2026, 5, 6, 12, 0, 0, 0);
   const dayTwoMillis = Date.UTC(2026, 5, 7, 12, 0, 0, 0);
-  const dayOneUtc = '2026-06-06';
-  const dayTwoUtc = '2026-06-07';
+  const dayOneUtc = '2026-06-06-06';
+  const dayTwoUtc = '2026-06-07-06';
 
   const apiRates = { EUR: 0.92, MXN: 17.5 };
 
@@ -158,5 +158,37 @@ describe('ExchangeRatesService daily cache', () => {
     expect(httpGet).toHaveBeenCalledTimes(2);
     expect(result.cached).toBe(false);
     expect(result.fetchedAtMillis).toBe(dayTwoMillis);
+  });
+  it('uses a new cache key after the midday and evening boundaries', async () => {
+    mockFindOneLean(null);
+    findOneAndUpdate.mockImplementation(async (filter) => ({
+      baseCurrency: 'USD', rates: apiRates, fetchedAtMillis: Date.now(), snapshotDate: filter.snapshotDate,
+    }));
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2026, 5, 6, 6, 0).getTime());
+    await service.getLatest();
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2026, 5, 6, 12, 0).getTime());
+    await service.getLatest();
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2026, 5, 6, 18, 0).getTime());
+    await service.getLatest();
+    expect(httpGet).toHaveBeenCalledTimes(3);
+    expect(findOneAndUpdate.mock.calls.map((call) => call[0].snapshotDate)).toEqual([
+      '2026-06-06-06', '2026-06-06-12', '2026-06-06-18',
+    ]);
+  });
+
+  it('does not query the provider before 06:00', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(new Date(2026, 5, 6, 5, 59).getTime());
+    mockFindOneLean(null);
+    findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null), sort: jest.fn().mockReturnThis() });
+    await service.getLatest();
+    expect(httpGet).not.toHaveBeenCalled();
+  });
+  it('shares one provider request between concurrent callers', async () => {
+    mockFindOneLean(null);
+    findOneAndUpdate.mockResolvedValue({ baseCurrency: 'USD', rates: apiRates, fetchedAtMillis: dayOneMillis });
+    const [first, second] = await Promise.all([service.getLatest(), service.getLatest()]);
+    expect(first.rates).toEqual(apiRates);
+    expect(second.rates).toEqual(apiRates);
+    expect(httpGet).toHaveBeenCalledTimes(1);
   });
 });
