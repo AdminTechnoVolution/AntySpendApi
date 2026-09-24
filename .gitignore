@@ -35,3 +35,7 @@ Thumbs.db
 *.swo
 node_modules
 node_modules
+# This repo is pnpm-managed (pnpm-lock.yaml is the real lockfile, CI uses pnpm too) — an
+# npm-generated package-lock.json here is stale by construction and caused a real `npm ci`
+# failure once already (mongoose resolved to a newer, type-breaking version than pnpm's lock).
+package-lock.json
