@@ -20,3 +20,12 @@ export class VerifyPurchaseDto {
   @IsString()
   packageName?: string;
 }
+
+export class VerifyApplePurchaseDto {
+  @ApiProperty({
+    description: "The signed transaction JWS from StoreKit's Transaction.jwsRepresentation",
+  })
+  @IsString()
+  @IsNotEmpty()
+  signedTransactionInfo!: string;
+}

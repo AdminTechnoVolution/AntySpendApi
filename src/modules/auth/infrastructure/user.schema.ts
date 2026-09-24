@@ -3,8 +3,11 @@ import { HydratedDocument } from 'mongoose';
 
 @Schema({ collection: 'users', timestamps: true })
 export class User {
-  @Prop({ required: true, unique: true })
-  googleSub!: string;
+  @Prop({ unique: true, sparse: true })
+  googleSub?: string;
+
+  @Prop({ unique: true, sparse: true })
+  appleSub?: string;
 
   @Prop({ required: true, unique: true })
   email!: string;

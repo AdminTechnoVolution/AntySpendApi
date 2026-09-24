@@ -25,6 +25,7 @@ import {
   startOfNextUtcMonthMillis,
 } from '../../../shared/billing/ai-quota.util';
 import { PlayBillingVerificationService } from './play-billing-verification.service';
+import { AppleBillingVerificationService } from './apple-billing-verification.service';
 
 type EntitlementLean = {
   userId: string;
@@ -33,6 +34,7 @@ type EntitlementLean = {
   source: string;
   expiresAtMillis?: number;
   googlePlayProductId?: string;
+  appStoreProductId?: string;
   autoRenewing?: boolean;
   aiFreeUsageCount?: number;
   aiFreeUsageMonthKey?: string;
@@ -50,6 +52,7 @@ export class EntitlementsService {
     @InjectModel(Household.name)
     private readonly householdModel: Model<HouseholdDocument>,
     private readonly playBilling: PlayBillingVerificationService,
+    private readonly appleBilling: AppleBillingVerificationService,
     private readonly config: ConfigService,
   ) {}
 
@@ -271,6 +274,47 @@ export class EntitlementsService {
     return this.toEntitlementResponse(doc!);
   }
 
+  /**
+   * The App Store equivalent of `verifyPurchase`: the client hands over a signed StoreKit
+   * transaction instead of a Play purchase token, verified against Apple's certificate chain
+   * rather than a Google API call — see `AppleBillingVerificationService`.
+   */
+  async verifyApplePurchase(userId: string, signedTransactionInfo: string) {
+    const verified = await this.appleBilling.verifyTransaction(signedTransactionInfo);
+    const planType = this.appleBilling.productIdToPlanType(verified.productId);
+    const now = Date.now();
+    const status = this.statusFromExpiryAndRenewal(
+      verified.expiresDateMillis,
+      true, // StoreKit transactions imply auto-renewal unless later revoked or expired.
+      now,
+    );
+
+    const doc = await this.entitlementModel
+      .findOneAndUpdate(
+        { userId },
+        {
+          $set: {
+            planType,
+            source: ENTITLEMENT_SOURCE.APP_STORE,
+            status,
+            appStoreProductId: verified.productId,
+            appStoreOriginalTransactionId: verified.originalTransactionId,
+            appStoreTransactionId: verified.transactionId,
+            expiresAtMillis: verified.expiresDateMillis,
+            updatedAtMillis: now,
+          },
+          $setOnInsert: {
+            userId,
+            createdAtMillis: now,
+          },
+        },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+      )
+      .lean();
+
+    return this.toEntitlementResponse(doc!);
+  }
+
   async syncEntitlementFromPlayByToken(
     purchaseToken: string,
     productId: string,
@@ -471,7 +515,7 @@ export class EntitlementsService {
           : null,
       status: doc.status ?? ENTITLEMENT_STATUS.NONE,
       expiresAtMillis: doc.expiresAtMillis ?? null,
-      productId: doc.googlePlayProductId ?? null,
+      productId: doc.googlePlayProductId ?? doc.appStoreProductId ?? null,
       source: doc.source ?? null,
       active,
       autoRenewing: doc.autoRenewing ?? null,

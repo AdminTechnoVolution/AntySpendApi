@@ -205,6 +205,8 @@ Zip deploy pre-builds `dist/` locally or in CI, then Oryx runs **`npm ci --omit=
 
 **Minimum App Settings to boot:** `MONGODB_URI`, `JWT_SECRET` (≥16 chars), `GOOGLE_CLIENT_ID`, plus `NODE_ENV=production`. Azure injects `PORT=8080` automatically.
 
+For Apple Sign In, set `APPLE_CLIENT_ID` to the accepted iOS bundle identifiers separated by commas, then run `pnpm db:migrate-apple-identities` once against the production database. This replaces the legacy non-sparse Google identity index and creates the sparse Apple identity index without changing existing users.
+
 **Startup:** default `npm start` runs `node dist/src/main` (compiled output). Do not use `nest start` on the server.
 
 - **VS Code:** copy [`.vscode/settings.json.example`](.vscode/settings.json.example) → `.vscode/settings.json` so deploy runs `npm run build` first and uploads `dist/`.

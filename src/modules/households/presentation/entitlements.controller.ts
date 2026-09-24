@@ -11,7 +11,7 @@ import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interfa
 import { ApiStandardAuthResponses } from '../../../shared/swagger/common-responses.decorator';
 import { BEARER_AUTH_SCHEME } from '../../../shared/swagger/swagger.constants';
 import { EntitlementsService } from '../application/entitlements.service';
-import { VerifyPurchaseDto } from '../dto/entitlements.dto';
+import { VerifyApplePurchaseDto, VerifyPurchaseDto } from '../dto/entitlements.dto';
 
 @ApiTags('entitlements')
 @ApiBearerAuth(BEARER_AUTH_SCHEME)
@@ -44,6 +44,23 @@ export class EntitlementsController {
       dto.productId,
       dto.purchaseToken,
       dto.packageName,
+    );
+  }
+
+  @Post('verify-apple-purchase')
+  @SkipSubscriptionCheck()
+  @ApiOperation({
+    summary: 'Verify an App Store StoreKit transaction and upsert entitlement',
+  })
+  @ApiOkResponse({ description: 'Verified entitlement' })
+  @ApiStandardAuthResponses()
+  verifyApplePurchase(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: VerifyApplePurchaseDto,
+  ) {
+    return this.entitlementsService.verifyApplePurchase(
+      user.userId,
+      dto.signedTransactionInfo,
     );
   }
 }

@@ -26,6 +26,7 @@ import { AuthService } from '../application/auth.service';
 import {
   AuthTokensResponseDto,
   AuthUserDto,
+  AppleAuthDto,
   DeleteAccountResponseDto,
   GoogleAuthDto,
   LogoutResponseDto,
@@ -47,6 +48,18 @@ export class AuthController {
   @ApiOkResponse({ type: AuthTokensResponseDto })
   async google(@Body() dto: GoogleAuthDto): Promise<AuthTokensResponseDto> {
     return this.authService.loginWithGoogle(dto.idToken);
+  }
+
+  @Post('apple')
+  @PublicRoute()
+  @ApiOperation({ summary: 'Login or register with Apple identityToken' })
+  @ApiOkResponse({ type: AuthTokensResponseDto })
+  async apple(@Body() dto: AppleAuthDto): Promise<AuthTokensResponseDto> {
+    return this.authService.loginWithApple(
+      dto.identityToken,
+      dto.nonce,
+      dto.name,
+    );
   }
 
   @Post('refresh')

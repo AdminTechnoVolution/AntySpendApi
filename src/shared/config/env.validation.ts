@@ -14,6 +14,7 @@ export const envValidationSchema = Joi.object({
   JWT_ACCESS_EXPIRES: Joi.string().default('15m'),
   JWT_REFRESH_EXPIRES: Joi.string().default('7d'),
   GOOGLE_CLIENT_ID: Joi.string().required(),
+  APPLE_CLIENT_ID: Joi.string().allow('').default(''),
   OPENROUTER_API_KEY: Joi.string().allow('').default(''),
   OPENROUTER_MODEL: Joi.string().default('google/gemini-2.5-flash-lite'),
   OPENROUTER_VISION_MODEL: Joi.string().default('google/gemini-2.5-flash'),
@@ -45,6 +46,7 @@ export const envValidationSchema = Joi.object({
   ),
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Joi.string().allow('').default(''),
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Joi.string().allow('').default(''),
+  APP_STORE_BUNDLE_ID: Joi.string().default('com.technovolution.antyspend'),
   RTDN_ENABLED: Joi.boolean()
     .truthy('true', '1')
     .falsy('false', '0')
@@ -65,6 +67,7 @@ export type EnvConfig = {
   JWT_ACCESS_EXPIRES: string;
   JWT_REFRESH_EXPIRES: string;
   GOOGLE_CLIENT_ID: string;
+  APPLE_CLIENT_ID: string;
   OPENROUTER_API_KEY: string;
   OPENROUTER_MODEL: string;
   OPENROUTER_VISION_MODEL: string;
@@ -79,6 +82,7 @@ export type EnvConfig = {
   GOOGLE_PLAY_PACKAGE_NAME: string;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: string;
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: string;
+  APP_STORE_BUNDLE_ID: string;
   RTDN_ENABLED: boolean;
   RTDN_SKIP_AUTH: boolean;
   GOOGLE_PUBSUB_PUSH_AUDIENCE: string;

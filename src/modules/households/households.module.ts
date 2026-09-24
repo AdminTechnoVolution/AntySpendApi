@@ -42,6 +42,7 @@ import { HouseholdAuthzService } from './application/household-authz.service';
 import { FamilyViewService } from './application/family-view.service';
 import { EntitlementsService } from './application/entitlements.service';
 import { PlayBillingVerificationService } from './application/play-billing-verification.service';
+import { AppleBillingVerificationService } from './application/apple-billing-verification.service';
 import { HouseholdFamilyService } from './application/household-family.service';
 import { HouseholdsController } from './presentation/households.controller';
 import { EntitlementsController } from './presentation/entitlements.controller';
@@ -75,6 +76,7 @@ import { EntitlementsController } from './presentation/entitlements.controller';
     FamilyViewService,
     HouseholdFamilyService,
     PlayBillingVerificationService,
+    AppleBillingVerificationService,
     EntitlementsService,
   ],
   exports: [HouseholdAuthzService, EntitlementsService],

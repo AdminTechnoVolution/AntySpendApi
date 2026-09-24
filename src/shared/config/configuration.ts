@@ -9,12 +9,19 @@ export default () => ({
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID,
   },
+  apple: {
+    clientId: process.env.APPLE_CLIENT_ID ?? '',
+  },
   googlePlay: {
     packageName:
       process.env.GOOGLE_PLAY_PACKAGE_NAME ?? 'com.technovolution.antyspend',
     serviceAccountJsonBase64:
       process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 ?? '',
     serviceAccountJson: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON ?? '',
+  },
+  appStore: {
+    // The iOS bundle identifier a signed StoreKit transaction must carry to be accepted.
+    bundleId: process.env.APP_STORE_BUNDLE_ID ?? 'com.technovolution.antyspend',
   },
   rtdn: {
     enabled:

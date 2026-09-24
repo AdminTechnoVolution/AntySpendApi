@@ -24,6 +24,10 @@ describe('AuthService profile', () => {
     verifyIdToken: jest.fn(),
   };
 
+  const appleVerifier = {
+    verifyIdentityToken: jest.fn(),
+  };
+
   const jwtService = {
     signAsync: jest.fn().mockResolvedValue('token'),
     verifyAsync: jest.fn(),
@@ -62,6 +66,7 @@ describe('AuthService profile', () => {
       userModel as never,
       refreshTokenModel as never,
       googleVerifier as never,
+      appleVerifier as never,
       jwtService as never,
       config as never,
       settingsService as never,
@@ -176,6 +181,56 @@ describe('AuthService profile', () => {
         }),
         expect.any(Object),
       );
+    });
+  });
+
+  describe('loginWithApple', () => {
+    const appleProfile = {
+      appleSub: 'apple-sub-1',
+      email: 'apple@example.com',
+    };
+
+    it('creates an Apple identity without populating googleSub', async () => {
+      appleVerifier.verifyIdentityToken.mockResolvedValue(appleProfile);
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      findOneAndUpdate.mockResolvedValue({
+        _id: { toString: () => userId },
+        email: appleProfile.email,
+        name: 'Apple Person',
+        picture: undefined,
+      });
+
+      const result = await service.loginWithApple(
+        'identity-token',
+        'hashed-nonce',
+        'Apple Person',
+      );
+
+      expect(result.accessToken).toBe('token');
+      expect(findOneAndUpdate).toHaveBeenCalledWith(
+        { appleSub: appleProfile.appleSub },
+        expect.objectContaining({
+          $setOnInsert: expect.objectContaining({
+            appleSub: appleProfile.appleSub,
+          }),
+        }),
+        expect.any(Object),
+      );
+      expect(settingsService.ensureForUser).toHaveBeenCalled();
+    });
+
+    it('does not merge an Apple identity into an existing email account', async () => {
+      appleVerifier.verifyIdentityToken.mockResolvedValue(appleProfile);
+      findOne
+        .mockReturnValueOnce({ lean: jest.fn().mockResolvedValue(null) })
+        .mockReturnValueOnce({
+          lean: jest.fn().mockResolvedValue({ _id: { toString: () => 'google-user' } }),
+        });
+
+      await expect(
+        service.loginWithApple('identity-token', 'hashed-nonce'),
+      ).rejects.toThrow('already linked to another sign-in provider');
+      expect(findOneAndUpdate).not.toHaveBeenCalled();
     });
   });
 

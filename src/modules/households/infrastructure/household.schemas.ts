@@ -18,9 +18,13 @@ export const ENTITLEMENT_STATUS = {
 } as const;
 export const ENTITLEMENT_SOURCE = {
   PLAY_STORE: 'PLAY_STORE',
+  APP_STORE: 'APP_STORE',
 } as const;
 export const PLAY_PRODUCT_PERSONAL = 'antyspend_personal_monthly';
 export const PLAY_PRODUCT_FAMILY = 'antyspend_family_monthly';
+// Must stay identical to the product identifiers declared in AntySpendIOS's StoreKitBillingGateway.
+export const APP_STORE_PRODUCT_PERSONAL = 'com.technovolution.antyspend.personal.monthly';
+export const APP_STORE_PRODUCT_FAMILY = 'com.technovolution.antyspend.family.monthly';
 
 export interface MemberPrivacySettings {
   shareWallets: boolean;
@@ -179,6 +183,16 @@ export class UserEntitlement {
 
   @Prop()
   autoRenewing?: boolean;
+
+  @Prop()
+  appStoreProductId?: string;
+
+  /** Stable across renewals for the same subscription — what we key updates on, like `googlePlayPurchaseToken`. */
+  @Prop()
+  appStoreOriginalTransactionId?: string;
+
+  @Prop()
+  appStoreTransactionId?: string;
 
   /** Free-tier AI usage this calendar month (see shared/billing/ai-quota.util.ts). */
   @Prop({ default: 0 })

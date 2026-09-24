@@ -8,6 +8,23 @@ export class GoogleAuthDto {
   idToken!: string;
 }
 
+export class AppleAuthDto {
+  @ApiProperty({ description: 'Apple identityToken from Sign in with Apple' })
+  @IsString()
+  @IsNotEmpty()
+  identityToken!: string;
+
+  @ApiProperty({ description: 'SHA-256 nonce sent with the Apple request' })
+  @IsString()
+  @IsNotEmpty()
+  nonce!: string;
+
+  @ApiPropertyOptional({ description: 'Name supplied on the first Apple login' })
+  @IsString()
+  @MaxLength(50)
+  name?: string;
+}
+
 export class RefreshTokenDto {
   @ApiProperty({ description: 'Refresh token from login or prior refresh' })
   @IsString()

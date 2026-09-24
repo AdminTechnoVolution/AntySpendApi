@@ -49,6 +49,7 @@ import { AccountDeletionService } from './application/account-deletion.service';
 import { AuthService } from './application/auth.service';
 import { AuthController } from './presentation/auth.controller';
 import { SettingsModule } from '../settings/settings.module';
+import { AppleTokenVerifier } from '../../shared/auth/apple-token.verifier';
 
 @Module({
   imports: [
@@ -77,7 +78,7 @@ import { SettingsModule } from '../settings/settings.module';
     forwardRef(() => SettingsModule),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AccountDeletionService],
+  providers: [AuthService, AccountDeletionService, AppleTokenVerifier],
   exports: [AuthService],
 })
 export class AuthModule {}

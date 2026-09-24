@@ -19,7 +19,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "billing:encode-sa": "node scripts/encode-play-service-account.js"
+    "billing:encode-sa": "node scripts/encode-play-service-account.js",
+    "db:migrate-apple-identities": "node scripts/migrate-apple-identities.mjs"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",
@@ -38,6 +39,7 @@
     "google-auth-library": "^10.7.0",
     "googleapis": "^173.0.0",
     "joi": "^18.2.1",
+    "jose": "^6.2.12",
     "mongoose": "^9.6.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",

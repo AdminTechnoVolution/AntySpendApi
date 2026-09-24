@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -9,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import { createHash, randomBytes } from 'crypto';
 import { GoogleTokenVerifier } from '../../../shared/auth/google-token.verifier';
+import { AppleTokenVerifier } from '../../../shared/auth/apple-token.verifier';
 import { AntyJwtPayload } from '../../../shared/auth/jwt-payload.interface';
 import {
   RefreshToken,
@@ -28,6 +30,7 @@ export class AuthService {
     @InjectModel(RefreshToken.name)
     private readonly refreshTokenModel: Model<RefreshTokenDocument>,
     private readonly googleVerifier: GoogleTokenVerifier,
+    private readonly appleVerifier: AppleTokenVerifier,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly settingsService: SettingsService,
@@ -71,6 +74,74 @@ export class AuthService {
 
     await this.settingsService.ensureForUser(user._id.toString(), profile);
 
+    const userId = user._id.toString();
+    return this.issueTokens(userId, user.email, {
+      id: userId,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+    });
+  }
+
+  async loginWithApple(
+    identityToken: string,
+    nonce: string,
+    requestedName?: string,
+  ) {
+    const profile = await this.appleVerifier.verifyIdentityToken(
+      identityToken,
+      nonce,
+    );
+    const now = Date.now();
+    const existingUser = await this.userModel
+      .findOne({ appleSub: profile.appleSub })
+      .lean();
+    const email = profile.email ?? existingUser?.email;
+    if (!email) {
+      throw new BadRequestException(
+        'Apple did not provide an email for this account',
+      );
+    }
+    if (!existingUser) {
+      const emailOwner = await this.userModel.findOne({ email }).lean();
+      if (emailOwner) {
+        throw new ConflictException(
+          'This email is already linked to another sign-in provider',
+        );
+      }
+    }
+
+    let preserveCustomName = false;
+    if (existingUser) {
+      const settings = await this.settingsService.findByUserId(
+        existingUser._id.toString(),
+      );
+      preserveCustomName = settings?.displayNameUserEdited === true;
+    }
+    const trimmedName = requestedName?.trim();
+    const setFields: Record<string, unknown> = {
+      email,
+      updatedAtMillis: now,
+    };
+    if (!preserveCustomName && trimmedName) setFields.name = trimmedName;
+
+    const user = await this.userModel.findOneAndUpdate(
+      { appleSub: profile.appleSub },
+      {
+        $set: setFields,
+        $setOnInsert: {
+          appleSub: profile.appleSub,
+          name: trimmedName || email,
+          createdAtMillis: now,
+        },
+      },
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+    );
+    await this.settingsService.ensureForUser(user._id.toString(), {
+      name: user.name,
+      email: user.email,
+      picture: user.picture,
+    });
     const userId = user._id.toString();
     return this.issueTokens(userId, user.email, {
       id: userId,

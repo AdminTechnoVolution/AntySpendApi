@@ -16,7 +16,10 @@ export class SettingsService {
     private readonly settingsModel: Model<UserSettingsDocument>,
   ) {}
 
-  async ensureForUser(userId: string, profile: GoogleProfile) {
+  async ensureForUser(
+    userId: string,
+    profile: Pick<GoogleProfile, 'name' | 'email' | 'picture'>,
+  ) {
     const now = Date.now();
     await this.settingsModel.findOneAndUpdate(
       { userId },
@@ -44,7 +47,10 @@ export class SettingsService {
   }
 
   /** @deprecated use ensureForUser */
-  async createDefaultForUser(userId: string, profile: GoogleProfile) {
+  async createDefaultForUser(
+    userId: string,
+    profile: Pick<GoogleProfile, 'name' | 'email' | 'picture'>,
+  ) {
     return this.ensureForUser(userId, profile);
   }
 

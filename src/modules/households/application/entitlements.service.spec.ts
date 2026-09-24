@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { EntitlementsService } from './entitlements.service';
 import { PlayBillingVerificationService } from './play-billing-verification.service';
+import { AppleBillingVerificationService } from './apple-billing-verification.service';
 import {
   ENTITLEMENT_SOURCE,
   ENTITLEMENT_STATUS,
@@ -35,6 +36,13 @@ describe('EntitlementsService', () => {
     productIdToPlanType,
   } as unknown as PlayBillingVerificationService;
 
+  const verifyTransaction = jest.fn();
+  const appleProductIdToPlanType = jest.fn();
+  const appleBilling = {
+    verifyTransaction,
+    productIdToPlanType: appleProductIdToPlanType,
+  } as unknown as AppleBillingVerificationService;
+
   const configGet = jest.fn();
   const config = { get: configGet };
 
@@ -53,6 +61,7 @@ describe('EntitlementsService', () => {
       memberModel as never,
       householdModel as never,
       playBilling,
+      appleBilling,
       config as never,
     );
     memberFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
