@@ -20,8 +20,11 @@ export default () => ({
     serviceAccountJson: process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON ?? '',
   },
   appStore: {
-    // The iOS bundle identifier a signed StoreKit transaction must carry to be accepted.
-    bundleId: process.env.APP_STORE_BUNDLE_ID ?? 'com.technovolution.antyspend',
+    // Comma-separated iOS bundle identifiers a signed StoreKit transaction may carry — mirrors
+    // APPLE_CLIENT_ID's per-environment list so one API instance accepts prod/staging/dev builds.
+    bundleId:
+      process.env.APP_STORE_BUNDLE_ID ??
+      'com.technovolution.antyspend,com.technovolution.antyspend.staging,com.technovolution.antyspend.dev',
   },
   rtdn: {
     enabled:

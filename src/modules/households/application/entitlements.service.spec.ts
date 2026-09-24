@@ -597,6 +597,65 @@ describe('EntitlementsService', () => {
     });
   });
 
+  describe('syncEntitlementFromAppleNotification', () => {
+    it('skips when no entitlement was ever created via verify-apple-purchase', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+
+      await service.syncEntitlementFromAppleNotification(
+        'original-txn-1',
+        'com.technovolution.antyspend.personal.monthly',
+        futureExpiry,
+        1,
+        'DID_RENEW',
+      );
+
+      expect(updateOne).not.toHaveBeenCalled();
+    });
+
+    it('updates the existing entitlement keyed by appStoreOriginalTransactionId', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ appStoreOriginalTransactionId: 'original-txn-1' }) });
+      appleProductIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+
+      await service.syncEntitlementFromAppleNotification(
+        'original-txn-1',
+        'com.technovolution.antyspend.personal.monthly',
+        futureExpiry,
+        1,
+        'DID_RENEW',
+      );
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { appStoreOriginalTransactionId: 'original-txn-1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            planType: PLAN_TYPE.PERSONAL,
+            status: ENTITLEMENT_STATUS.ACTIVE,
+            autoRenewing: true,
+            expiresAtMillis: futureExpiry,
+          }),
+        }),
+      );
+    });
+
+    it('marks the entitlement expired once a revoked transaction has passed its expiry', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ appStoreOriginalTransactionId: 'original-txn-1' }) });
+      appleProductIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+
+      await service.syncEntitlementFromAppleNotification(
+        'original-txn-1',
+        'com.technovolution.antyspend.personal.monthly',
+        pastExpiry,
+        0,
+        'REVOKE',
+      );
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { appStoreOriginalTransactionId: 'original-txn-1' },
+        expect.objectContaining({ $set: expect.objectContaining({ status: ENTITLEMENT_STATUS.EXPIRED }) }),
+      );
+    });
+  });
+
   describe('syncEntitlementFromPlayByToken', () => {
     it('skips when no entitlement exists and the purchase has no obfuscatedAccountId', async () => {
       productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);

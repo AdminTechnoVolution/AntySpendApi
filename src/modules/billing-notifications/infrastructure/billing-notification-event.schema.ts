@@ -12,6 +12,10 @@ export class BillingNotificationEvent {
   @Prop()
   notificationType?: number;
 
+  /** Apple's notification types are strings (e.g. "DID_RENEW"), unlike Play's numeric codes. */
+  @Prop()
+  appleNotificationType?: string;
+
   @Prop({ required: true })
   processedAtMillis!: number;
 

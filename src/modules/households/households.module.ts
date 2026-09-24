@@ -79,6 +79,6 @@ import { EntitlementsController } from './presentation/entitlements.controller';
     AppleBillingVerificationService,
     EntitlementsService,
   ],
-  exports: [HouseholdAuthzService, EntitlementsService],
+  exports: [HouseholdAuthzService, EntitlementsService, AppleBillingVerificationService],
 })
 export class HouseholdsModule {}

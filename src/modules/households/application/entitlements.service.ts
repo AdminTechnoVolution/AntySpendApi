@@ -315,6 +315,79 @@ export class EntitlementsService {
     return this.toEntitlementResponse(doc!);
   }
 
+  /**
+   * The App Store Server Notifications counterpart to `syncEntitlementFromPlayByToken`. Unlike
+   * Play's RTDN, Apple's notification carries no equivalent of `obfuscatedAccountId` today (the
+   * client would need to set `Product.PurchaseOption.appAccountToken` at purchase time for that,
+   * which it doesn't yet) — so exactly like the Play path when no account id is available, an
+   * entitlement that was never created by `verify-apple-purchase` in the first place is simply
+   * skipped rather than guessed at.
+   */
+  async syncEntitlementFromAppleNotification(
+    originalTransactionId: string,
+    productId: string,
+    expiresAtMillis: number,
+    autoRenewStatus: number,
+    notificationType: string,
+  ): Promise<void> {
+    const existing = await this.entitlementModel
+      .findOne({ appStoreOriginalTransactionId: originalTransactionId })
+      .lean();
+    if (!existing) {
+      this.logger.log(
+        `No entitlement for appStoreOriginalTransactionId=${originalTransactionId}; awaiting verify-apple-purchase`,
+      );
+      return;
+    }
+
+    const planType = this.appleBilling.productIdToPlanType(productId);
+    const now = Date.now();
+    const autoRenewing = autoRenewStatus === 1;
+    const status = this.resolveStatusFromAppleNotification(
+      notificationType,
+      expiresAtMillis,
+      autoRenewing,
+      now,
+    );
+
+    await this.entitlementModel.updateOne(
+      { appStoreOriginalTransactionId: originalTransactionId },
+      {
+        $set: {
+          planType,
+          status,
+          appStoreProductId: productId,
+          autoRenewing,
+          expiresAtMillis,
+          updatedAtMillis: now,
+        },
+      },
+    );
+  }
+
+  private resolveStatusFromAppleNotification(
+    notificationType: string,
+    expiresAtMillis: number,
+    autoRenewing: boolean,
+    now: number,
+  ): string {
+    const notExpired = expiresAtMillis > now;
+    switch (notificationType) {
+      case 'EXPIRED':
+      case 'REFUND':
+      case 'REVOKE':
+        return ENTITLEMENT_STATUS.EXPIRED;
+      case 'DID_CHANGE_RENEWAL_STATUS':
+      case 'DID_FAIL_TO_RENEW':
+        return notExpired ? ENTITLEMENT_STATUS.CANCELED : ENTITLEMENT_STATUS.EXPIRED;
+      case 'SUBSCRIBED':
+      case 'DID_RENEW':
+      case 'GRACE_PERIOD_EXPIRED':
+      default:
+        return this.statusFromExpiryAndRenewal(expiresAtMillis, autoRenewing, now);
+    }
+  }
+
   async syncEntitlementFromPlayByToken(
     purchaseToken: string,
     productId: string,

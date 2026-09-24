@@ -46,7 +46,9 @@ export const envValidationSchema = Joi.object({
   ),
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: Joi.string().allow('').default(''),
   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: Joi.string().allow('').default(''),
-  APP_STORE_BUNDLE_ID: Joi.string().default('com.technovolution.antyspend'),
+  APP_STORE_BUNDLE_ID: Joi.string().default(
+    'com.technovolution.antyspend,com.technovolution.antyspend.staging,com.technovolution.antyspend.dev',
+  ),
   RTDN_ENABLED: Joi.boolean()
     .truthy('true', '1')
     .falsy('false', '0')

@@ -9,6 +9,9 @@ import {
   BillingNotificationEventSchema,
 } from './infrastructure/billing-notification-event.schema';
 import { GooglePlayRtdnController } from './presentation/google-play-rtdn.controller';
+import { AppleNotificationDecoderService } from './application/apple-notification-decoder.service';
+import { AppleNotificationHandlerService } from './application/apple-notification-handler.service';
+import { AppleStoreNotificationsController } from './presentation/apple-store-notifications.controller';
 
 @Module({
   imports: [
@@ -20,11 +23,13 @@ import { GooglePlayRtdnController } from './presentation/google-play-rtdn.contro
       },
     ]),
   ],
-  controllers: [GooglePlayRtdnController],
+  controllers: [GooglePlayRtdnController, AppleStoreNotificationsController],
   providers: [
     PubSubPushAuthGuard,
     RtdnDecoderService,
     RtdnHandlerService,
+    AppleNotificationDecoderService,
+    AppleNotificationHandlerService,
   ],
 })
 export class BillingNotificationsModule {}

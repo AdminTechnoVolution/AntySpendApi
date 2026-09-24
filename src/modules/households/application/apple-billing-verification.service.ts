@@ -40,7 +40,7 @@ export interface VerifiedAppleTransaction {
   autoRenewStatus?: boolean;
 }
 
-interface AppleTransactionPayload {
+export interface AppleTransactionPayload {
   transactionId: string;
   originalTransactionId: string;
   productId: string;
@@ -65,8 +65,15 @@ export class AppleBillingVerificationService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async verifyTransaction(signedTransactionInfo: string): Promise<VerifiedAppleTransaction> {
-    const segments = signedTransactionInfo.split('.');
+  /**
+   * The one place that actually trusts an Apple-signed JWS: verifies its certificate chain up
+   * to Apple's root and its ES256 signature, then hands back the decoded claims untyped. Both a
+   * StoreKit transaction and an App Store Server Notification envelope are "just" a JWS in this
+   * shape — `verifyTransaction` and `AppleNotificationDecoderService` each layer their own
+   * claim-shape validation on top of this instead of re-implementing the crypto.
+   */
+  async verifyAndDecodeSignedPayload<T>(jws: string): Promise<T> {
+    const segments = jws.split('.');
     if (segments.length !== 3) throw new BadRequestException('MALFORMED_TRANSACTION');
     const [headerSegment, payloadSegment, signatureSegment] = segments;
 
@@ -75,7 +82,7 @@ export class AppleBillingVerificationService {
     this.verifyChainOfTrust(chain);
 
     if (protectedHeader.alg && protectedHeader.alg !== 'ES256') {
-      // Apple has only ever signed StoreKit transactions with ES256; anything else is unexpected.
+      // Apple has only ever signed StoreKit payloads with ES256; anything else is unexpected.
       throw new BadRequestException('UNSUPPORTED_ALGORITHM');
     }
     const signatureValid = verifySignature(
@@ -86,15 +93,23 @@ export class AppleBillingVerificationService {
     );
     if (!signatureValid) throw new BadRequestException('INVALID_APPLE_SIGNATURE');
 
-    let claims: AppleTransactionPayload;
     try {
-      claims = JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8'));
+      return JSON.parse(Buffer.from(payloadSegment, 'base64url').toString('utf8')) as T;
     } catch {
       throw new BadRequestException('MALFORMED_TRANSACTION');
     }
+  }
 
-    const expectedBundleId = this.config.get<string>('appStore.bundleId');
-    if (expectedBundleId && claims.bundleId !== expectedBundleId) {
+  async verifyTransaction(signedTransactionInfo: string): Promise<VerifiedAppleTransaction> {
+    const claims = await this.verifyAndDecodeSignedPayload<AppleTransactionPayload>(signedTransactionInfo);
+
+    // Comma-separated, same convention as APPLE_CLIENT_ID — one API instance validates
+    // transactions from every build flavor (prod/staging/dev), each with its own bundle id.
+    const acceptedBundleIds = (this.config.get<string>('appStore.bundleId') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (acceptedBundleIds.length > 0 && !acceptedBundleIds.includes(claims.bundleId)) {
       throw new BadRequestException('BUNDLE_ID_MISMATCH');
     }
     if (claims.revocationDate) {
