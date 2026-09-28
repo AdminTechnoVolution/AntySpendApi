@@ -219,6 +219,98 @@ describe('AuthService profile', () => {
       expect(settingsService.ensureForUser).toHaveBeenCalled();
     });
 
+    it('defaults the name to the email local-part on first signup with no name given (never the Apple sub)', async () => {
+      appleVerifier.verifyIdentityToken.mockResolvedValue(appleProfile);
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      findOneAndUpdate.mockResolvedValue({
+        _id: { toString: () => userId },
+        email: appleProfile.email,
+        name: 'apple',
+        picture: undefined,
+      });
+
+      await service.loginWithApple('identity-token', 'hashed-nonce', undefined);
+
+      expect(findOneAndUpdate).toHaveBeenCalledWith(
+        { appleSub: appleProfile.appleSub },
+        expect.objectContaining({
+          $setOnInsert: expect.objectContaining({
+            appleSub: appleProfile.appleSub,
+            name: 'apple',
+          }),
+        }),
+        expect.any(Object),
+      );
+      // `name` must never be targeted by both $set and $setOnInsert in the same
+      // update (Mongo rejects that as a conflicting path).
+      const call = findOneAndUpdate.mock.calls[0][1];
+      if (Object.prototype.hasOwnProperty.call(call.$set, 'name')) {
+        expect(
+          Object.prototype.hasOwnProperty.call(call.$setOnInsert, 'name'),
+        ).toBe(false);
+      }
+    });
+
+    it('never puts name in both $set and $setOnInsert when a name is given on first signup', async () => {
+      appleVerifier.verifyIdentityToken.mockResolvedValue(appleProfile);
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      findOneAndUpdate.mockResolvedValue({
+        _id: { toString: () => userId },
+        email: appleProfile.email,
+        name: 'Apple Person',
+        picture: undefined,
+      });
+
+      await service.loginWithApple(
+        'identity-token',
+        'hashed-nonce',
+        'Apple Person',
+      );
+
+      const call = findOneAndUpdate.mock.calls[0][1];
+      const setHasName = Object.prototype.hasOwnProperty.call(
+        call.$set,
+        'name',
+      );
+      const setOnInsertHasName = Object.prototype.hasOwnProperty.call(
+        call.$setOnInsert,
+        'name',
+      );
+      expect(setHasName && setOnInsertHasName).toBe(false);
+      expect(setOnInsertHasName).toBe(true);
+      expect(call.$setOnInsert.name).toBe('Apple Person');
+    });
+
+    it('preserves an existing real name on re-login when Apple sends no name', async () => {
+      appleVerifier.verifyIdentityToken.mockResolvedValue(appleProfile);
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          _id: { toString: () => userId },
+          email: appleProfile.email,
+          name: 'María Real Name',
+        }),
+      });
+      findByUserId.mockResolvedValue(null);
+      findOneAndUpdate.mockResolvedValue({
+        _id: { toString: () => userId },
+        email: appleProfile.email,
+        name: 'María Real Name',
+        picture: undefined,
+      });
+
+      const result = await service.loginWithApple(
+        'identity-token',
+        'hashed-nonce',
+        undefined,
+      );
+
+      const call = findOneAndUpdate.mock.calls[0][1];
+      expect(Object.prototype.hasOwnProperty.call(call.$set, 'name')).toBe(
+        false,
+      );
+      expect(result.user.name).toBe('María Real Name');
+    });
+
     it('does not merge an Apple identity into an existing email account', async () => {
       appleVerifier.verifyIdentityToken.mockResolvedValue(appleProfile);
       findOne

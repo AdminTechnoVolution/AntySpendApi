@@ -123,17 +123,32 @@ export class AuthService {
       email,
       updatedAtMillis: now,
     };
-    if (!preserveCustomName && trimmedName) setFields.name = trimmedName;
+    const setOnInsertFields: Record<string, unknown> = {
+      appleSub: profile.appleSub,
+      createdAtMillis: now,
+    };
+
+    // Apple only sends the user's real name on the very first authorization for this
+    // Apple ID + app; every subsequent login omits it. `name` must therefore only ever
+    // appear in ONE of $set / $setOnInsert below (Mongo rejects an update that targets
+    // the same path from both), and an absent/blank name on a re-login must never
+    // clobber a name that is already on file.
+    if (existingUser) {
+      if (!preserveCustomName && trimmedName) {
+        setFields.name = trimmedName;
+      }
+    } else {
+      // First-ever signup: prefer the name Apple gave us; otherwise fall back to the
+      // email's local-part. Never fall back to the opaque Apple `sub` — it is not a
+      // human-readable name and must not end up stored as one.
+      setOnInsertFields.name = trimmedName || getEmailLocalPart(email);
+    }
 
     const user = await this.userModel.findOneAndUpdate(
       { appleSub: profile.appleSub },
       {
         $set: setFields,
-        $setOnInsert: {
-          appleSub: profile.appleSub,
-          name: trimmedName || email,
-          createdAtMillis: now,
-        },
+        $setOnInsert: setOnInsertFields,
       },
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
     );
@@ -361,4 +376,14 @@ export class AuthService {
 
 export function generateId(): string {
   return randomBytes(16).toString('hex');
+}
+
+/**
+ * Derives a display-name fallback from an email address ("john" from
+ * "john@example.com"). Used only when no real name is available; must never be
+ * replaced with an opaque provider identifier (e.g. Apple's `sub`).
+ */
+export function getEmailLocalPart(email: string): string {
+  const localPart = email.split('@')[0]?.trim();
+  return localPart || email;
 }

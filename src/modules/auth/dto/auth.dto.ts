@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class GoogleAuthDto {
   @ApiProperty({ description: 'Google Sign-In idToken from Android' })
@@ -20,6 +20,7 @@ export class AppleAuthDto {
   nonce!: string;
 
   @ApiPropertyOptional({ description: 'Name supplied on the first Apple login' })
+  @IsOptional()
   @IsString()
   @MaxLength(50)
   name?: string;

@@ -90,6 +90,7 @@ export class AuthController {
   }
 
   @Patch('profile')
+  @SkipSubscriptionCheck()
   @ApiBearerAuth(BEARER_AUTH_SCHEME)
   @ApiOperation({ summary: 'Update authenticated user display name' })
   @ApiOkResponse({ type: AuthUserDto })
