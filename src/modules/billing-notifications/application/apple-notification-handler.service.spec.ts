@@ -22,7 +22,7 @@ describe('AppleNotificationHandlerService', () => {
     transaction: {
       transactionId: 'txn-2',
       originalTransactionId: 'original-txn-1',
-      productId: 'com.technovolution.antyspend.personal.monthly',
+      productId: 'antyspend_personal_monthly',
       bundleId: 'com.technovolution.antyspend',
       expiresDate: 4_000_000_000_000,
       purchaseDate: 3_900_000_000_000,
@@ -30,7 +30,7 @@ describe('AppleNotificationHandlerService', () => {
     },
     renewalInfo: {
       originalTransactionId: 'original-txn-1',
-      productId: 'com.technovolution.antyspend.personal.monthly',
+      productId: 'antyspend_personal_monthly',
       autoRenewStatus: 1,
     },
   };
@@ -51,7 +51,7 @@ describe('AppleNotificationHandlerService', () => {
     );
     expect(syncEntitlementFromAppleNotification).toHaveBeenCalledWith(
       'original-txn-1',
-      'com.technovolution.antyspend.personal.monthly',
+      'antyspend_personal_monthly',
       4_000_000_000_000,
       1,
       'DID_RENEW',

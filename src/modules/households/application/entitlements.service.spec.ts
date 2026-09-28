@@ -603,7 +603,7 @@ describe('EntitlementsService', () => {
 
       await service.syncEntitlementFromAppleNotification(
         'original-txn-1',
-        'com.technovolution.antyspend.personal.monthly',
+        'antyspend_personal_monthly',
         futureExpiry,
         1,
         'DID_RENEW',
@@ -618,7 +618,7 @@ describe('EntitlementsService', () => {
 
       await service.syncEntitlementFromAppleNotification(
         'original-txn-1',
-        'com.technovolution.antyspend.personal.monthly',
+        'antyspend_personal_monthly',
         futureExpiry,
         1,
         'DID_RENEW',
@@ -643,7 +643,7 @@ describe('EntitlementsService', () => {
 
       await service.syncEntitlementFromAppleNotification(
         'original-txn-1',
-        'com.technovolution.antyspend.personal.monthly',
+        'antyspend_personal_monthly',
         pastExpiry,
         0,
         'REVOKE',

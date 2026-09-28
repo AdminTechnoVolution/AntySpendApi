@@ -22,9 +22,12 @@ export const ENTITLEMENT_SOURCE = {
 } as const;
 export const PLAY_PRODUCT_PERSONAL = 'antyspend_personal_monthly';
 export const PLAY_PRODUCT_FAMILY = 'antyspend_family_monthly';
-// Must stay identical to the product identifiers declared in AntySpendIOS's StoreKitBillingGateway.
-export const APP_STORE_PRODUCT_PERSONAL = 'com.technovolution.antyspend.personal.monthly';
-export const APP_STORE_PRODUCT_FAMILY = 'com.technovolution.antyspend.family.monthly';
+// Must stay identical to the product identifiers declared in AntySpendIOS's StoreKitBillingGateway
+// and to the real subscriptions created in App Store Connect. The family product bills every 6
+// months despite the "monthly" in its identifier — that's just its name, not its billing period;
+// App Store Connect/StoreKit own the actual renewal cadence, this backend never needs to know it.
+export const APP_STORE_PRODUCT_PERSONAL = 'antyspend_personal_monthly';
+export const APP_STORE_PRODUCT_FAMILY = 'antyspend_family_monthly';
 
 export interface MemberPrivacySettings {
   shareWallets: boolean;
