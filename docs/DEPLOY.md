@@ -4,13 +4,17 @@ AntySpend API runs on **Azure App Service for Linux** (Node 20+). Zip deploy is 
 
 ## What gets deployed
 
+The repo is **pnpm-managed** (`pnpm-lock.yaml` is the real lockfile; `package-lock.json` is gitignored). The GitHub Actions workflow — the only deploy path now used — builds with pnpm:
+
 | Included in zip | Excluded (VS Code `zipIgnorePattern`) |
 |---|---|
-| `package.json`, `package-lock.json` | `.git/`, `.env`, `.env.*` |
-| `dist/` (from `npm run build`) | `.vscode/`, `src/`, `test/`, `coverage/` |
-| `node_modules/` (prod only, from `npm ci --omit=dev`) | |
+| `package.json` | `.git/`, `.env`, `.env.*` |
+| `dist/` (from `pnpm run build`) | `.vscode/`, `src/`, `test/`, `coverage/` |
+| `node_modules/` (prod only, from `pnpm prune --prod`) | |
 
-The VS Code **deploy-prep** task (`.vscode/tasks.json`) runs `npm ci` → `npm run build` → `npm ci --omit=dev` before upload. Do not exclude `node_modules` from the zip — that caused `Cannot find module '@nestjs/common'` when Azure Oryx install did not run.
+The workflow runs `pnpm install --frozen-lockfile` → `pnpm run build` → `pnpm prune --prod`, then uploads the whole working directory as a GitHub Actions artifact and zip-deploys it to Azure. Do not exclude `node_modules` from the zip — that caused `Cannot find module '@nestjs/common'` when Azure Oryx install did not run.
+
+**pnpm-specific gotcha:** pnpm's default `node_modules` layout is symlinked (a package's transitive dependencies — e.g. `tslib`, pulled in by `@nestjs/common` — exist only as symlinks into `node_modules/.pnpm/...`). That symlinked tree does not reliably survive the `actions/upload-artifact` → `actions/download-artifact` round trip, which caused a production `Cannot find module 'tslib'` crash even though direct dependencies resolved fine. Fixed by setting `nodeLinker: hoisted` in [`pnpm-workspace.yaml`](../pnpm-workspace.yaml), which makes pnpm lay out a flat, symlink-free `node_modules` like npm/yarn classic. (This setting has to live in `pnpm-workspace.yaml`, not `.npmrc` — pnpm 10+ ignores `node-linker` in `.npmrc` once a `pnpm-workspace.yaml` is present.)
 
 ## Startup command
 
@@ -54,30 +58,25 @@ The app validates environment variables at boot with Joi. Missing or invalid val
 
 See [DEPLOY-BILLING.md](./DEPLOY-BILLING.md) for billing-specific secrets.
 
-## Deploy from VS Code
-
-1. Copy [`.vscode/settings.json.example`](../.vscode/settings.json.example) → `.vscode/settings.json`.
-2. Configure Application settings in Azure Portal (one-time).
-3. Deploy — the extension runs **deploy-prep** (`npm ci` → `build` → `npm ci --omit=dev`), then uploads `dist/`, production `node_modules/`, and `package.json`.
-4. **`WEBSITE_RUN_FROM_PACKAGE`** should not be set (or set to `0`) if you ever switch back to server-side install.
-
 ## Deploy from GitHub Actions
 
-Workflow [`.github/workflows/main_antyspend.yml`](../.github/workflows/main_antyspend.yml) builds on the runner, then zip-deploys the artifact. The same `.deployment` file triggers install-only Oryx on Azure. Same Application settings apply.
+Workflow [`.github/workflows/main_antyspend.yml`](../.github/workflows/main_antyspend.yml) is the only deploy path: it builds on the runner with pnpm, then zip-deploys the artifact. The same `.deployment` file triggers install-only Oryx on Azure. Same Application settings apply.
 
 ## Build and smoke-test locally
 
 ```bash
-npm install          # full install for build
-npm run build
-npm run start:prod   # smoke test with .env present
+pnpm install --frozen-lockfile   # full install for build
+pnpm run build
+pnpm run start:prod              # smoke test with .env present
 ```
 
 Simulate the Azure runtime (production deps only, pre-built `dist/`):
 
 ```bash
 rm -rf node_modules
-npm ci --omit=dev
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm prune --prod
 node dist/src/main.js
 ```
 
@@ -89,18 +88,16 @@ The process should load NestJS modules. It may exit on missing env vars — that
 2. Or **Development Tools → Advanced Tools (Kudu)** → **Debug console** → browse `LogFiles/`.
 3. Successful boot shows: `AntySpend API listening on port 8080`.
 4. Env validation failures show: `AntySpend API failed to start:` followed by the Joi error.
-5. During deploy, look for: `Running custom build command: npm ci --omit=dev`.
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
-| `Cannot find module '@nestjs/common'` | Production `node_modules` missing from zip — use **deploy-prep** and do not exclude `node_modules` in `zipIgnorePattern` |
+| `Cannot find module '@nestjs/common'` | Production `node_modules` missing from zip — do not exclude `node_modules` in `zipIgnorePattern` |
+| `Cannot find module 'tslib'` (or another transitive dep) while a direct dependency like `@nestjs/common` resolves fine | pnpm's symlinked `node_modules` didn't survive the `upload-artifact`/`download-artifact` round trip — confirm `nodeLinker: hoisted` is set in `pnpm-workspace.yaml` |
 | Log stops after `Extracting modules...` then Application Error | `npm start` was running `nest start` (fixed: now runs `node dist/main`) |
-| `Cannot find module '.../dist/src/main'` | `dist/` missing from zip — run `npm run build` before deploy |
+| `Cannot find module '.../dist/src/main'` | `dist/` missing from zip — run `pnpm run build` before deploy |
 | Immediate crash, Joi message in logs | Missing `MONGODB_URI`, `JWT_SECRET`, or `GOOGLE_CLIENT_ID` in App Settings |
-| Heap OOM during deploy | Remote `nest build` — build locally/CI only; never run `npm run build` on Azure |
-| Deploy stuck on `Running preDeployTask "deploy-prep"` | VS Code `$tsc` problem matcher on `nest build` never signals completion — use `.vscode/tasks.json` with `"problemMatcher": []` on the build step (see repo) |
-| `npm ci` fails on server | Not used when `node_modules` is bundled; fix lock file locally with `npx npm@10.9.2 install` |
+| Heap OOM during deploy | Remote `nest build` — build locally/CI only; never run `pnpm run build` on Azure |
 
 No `web.config` is required on Linux App Service. `web.config` / iisnode applies only to Windows App Service plans.

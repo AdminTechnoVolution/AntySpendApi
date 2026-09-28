@@ -1,3 +1,12 @@
+# Flat, symlink-free node_modules. The GitHub Actions workflow builds with pnpm,
+# zips node_modules via actions/upload-artifact, then zip-deploys to Azure — pnpm's
+# default symlinked node_modules (transitive deps like tslib live only as symlinks
+# into node_modules/.pnpm) doesn't reliably survive that artifact round-trip, which
+# caused "Cannot find module 'tslib'" in production even though @nestjs/common
+# (a direct, hoisted dependency) resolved fine. (pnpm 10+ reads node-linker from here,
+# not .npmrc, once a pnpm-workspace.yaml exists.)
+nodeLinker: hoisted
+
 allowBuilds:
   '@nestjs/core': true
   '@scarf/scarf': true
