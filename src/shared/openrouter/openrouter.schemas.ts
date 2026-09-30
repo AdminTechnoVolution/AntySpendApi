@@ -143,11 +143,16 @@ const RECEIPT_ITEM_SCHEMA = {
  * Voice/text extraction: a single spoken or typed sentence can describe several
  * expenses ("gasté 20 en el bus y 15 en el almuerzo"), so the array is left open
  * (capped at a sane upper bound, not 1) — capping this at maxItems: 1 previously
- * made it impossible for the model to ever return more than one expense. The cap
- * is kept modest (not, say, 20) because Gemini's structured-output mode rejects
- * schemas outright with "too many states for serving" once a nested array's
- * length limit gets too large for its item schema's complexity — 8 covers any
- * realistic single sentence while staying well inside that budget.
+ * made it impossible for the model to ever return more than one expense.
+ *
+ * The cap is NOT a design choice above 5-6 — it's a hard wall in Gemini's
+ * structured-output serving layer for this exact item schema. Verified directly
+ * against OpenRouter with this schema and model (google/gemini-2.5-flash-lite):
+ * maxItems 1/3/5/6 succeed, maxItems 7/8/10/20 all fail with the provider's
+ * "schema produces a constraint that has too many states for serving" error —
+ * i.e. every value this project previously shipped above 6 (8, then 20) was
+ * broken in production for EVERY voice/text request, not just multi-expense
+ * ones. 5 keeps a one-item margin below the confirmed failure at 7.
  */
 export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
   type: 'object',
@@ -155,7 +160,7 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
     expenses: {
       type: 'array',
       minItems: 1,
-      maxItems: 8,
+      maxItems: 5,
       items: EXPENSE_ITEM_SCHEMA,
     },
   },
