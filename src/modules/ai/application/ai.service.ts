@@ -7,6 +7,7 @@ import {
 } from '../../../shared/openrouter/openrouter.client';
 import {
   EXPENSE_EXTRACTION_JSON_SCHEMA,
+  RECEIPT_EXTRACTION_JSON_SCHEMA,
   LEAK_ANALYSIS_JSON_SCHEMA,
   MONTHLY_REPORT_JSON_SCHEMA,
 } from '../../../shared/openrouter/openrouter.schemas';
@@ -331,7 +332,7 @@ export class AiService {
           imageBase64,
           mimeType,
           'expense_extraction_response',
-          EXPENSE_EXTRACTION_JSON_SCHEMA,
+          RECEIPT_EXTRACTION_JSON_SCHEMA,
           abortSignal,
         );
     } catch (error: unknown) {

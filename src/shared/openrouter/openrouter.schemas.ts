@@ -10,16 +10,9 @@ const RECEIPT_FIELD_EVIDENCE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
+const EXPENSE_ITEM_SCHEMA = {
   type: 'object',
   properties: {
-    expenses: {
-      type: 'array',
-      minItems: 1,
-      maxItems: 1,
-      items: {
-        type: 'object',
-        properties: {
           title: { type: 'string', maxLength: 100 },
           amount: { type: ['number', 'null'] },
           occurredAtMillis: { type: ['integer', 'null'] },
@@ -124,24 +117,54 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
             ],
             additionalProperties: false,
           },
-        },
-        required: [
-          'title',
-          'amount',
-          'occurredAtMillis',
-          'currency',
-          'category',
-          'paymentMethod',
-          'store',
-          'sourceText',
-          'confidence',
-          'requiresReview',
-          'reviewReasons',
-          'lineItems',
-          'fieldEvidence',
-        ],
-        additionalProperties: false,
-      },
+  },
+  required: [
+    'title',
+    'amount',
+    'occurredAtMillis',
+    'currency',
+    'category',
+    'paymentMethod',
+    'store',
+    'sourceText',
+    'confidence',
+    'requiresReview',
+    'reviewReasons',
+    'lineItems',
+    'fieldEvidence',
+  ],
+  additionalProperties: false,
+} as const;
+
+/**
+ * Voice/text extraction: a single spoken or typed sentence can describe several
+ * expenses ("gasté 20 en el bus y 15 en el almuerzo"), so the array is left open
+ * (capped at a sane upper bound, not 1) — capping this at maxItems: 1 previously
+ * made it impossible for the model to ever return more than one expense.
+ */
+export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    expenses: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 20,
+      items: EXPENSE_ITEM_SCHEMA,
+    },
+  },
+  required: ['expenses'],
+  additionalProperties: false,
+} as const;
+
+/** Receipt-photo extraction: one photo is always exactly one expense. */
+export const RECEIPT_EXTRACTION_JSON_SCHEMA = {
+  type: 'object',
+  properties: {
+    expenses: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 1,
+      items: EXPENSE_ITEM_SCHEMA,
     },
   },
   required: ['expenses'],

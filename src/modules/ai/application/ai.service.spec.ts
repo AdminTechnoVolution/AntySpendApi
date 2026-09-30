@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { EXPENSE_EXTRACTION_JSON_SCHEMA } from '../../../shared/openrouter/openrouter.schemas';
+import { RECEIPT_EXTRACTION_JSON_SCHEMA } from '../../../shared/openrouter/openrouter.schemas';
 import { RECEIPT_EXTRACTION_SYSTEM_PROMPT } from '../../../shared/prompts/ai.prompts';
 import { AiService } from './ai.service';
 
@@ -114,7 +114,7 @@ describe('AiService.extractFromReceipt', () => {
     expect(imageBase64).toBe(tinyPngBase64);
     expect(mimeType).toBe('image/png');
     expect(schemaName).toBe('expense_extraction_response');
-    expect(schema).toEqual(EXPENSE_EXTRACTION_JSON_SCHEMA);
+    expect(schema).toEqual(RECEIPT_EXTRACTION_JSON_SCHEMA);
     expect(result.expenses).toHaveLength(1);
   });
 
@@ -227,7 +227,7 @@ describe('AiService.extractFromReceipt', () => {
 
   it('requires lineItems in the receipt JSON schema for itemized products', () => {
     const expenseItemSchema = (
-      EXPENSE_EXTRACTION_JSON_SCHEMA.properties.expenses.items as {
+      RECEIPT_EXTRACTION_JSON_SCHEMA.properties.expenses.items as {
         properties: { lineItems: unknown };
         required: string[];
       }
@@ -236,7 +236,7 @@ describe('AiService.extractFromReceipt', () => {
     expect(expenseItemSchema).toBeDefined();
     expect(
       (
-        EXPENSE_EXTRACTION_JSON_SCHEMA.properties.expenses
+        RECEIPT_EXTRACTION_JSON_SCHEMA.properties.expenses
           .items as unknown as { required: string[] }
       ).required,
     ).toContain('lineItems');
