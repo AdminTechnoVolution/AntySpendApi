@@ -143,7 +143,11 @@ const RECEIPT_ITEM_SCHEMA = {
  * Voice/text extraction: a single spoken or typed sentence can describe several
  * expenses ("gasté 20 en el bus y 15 en el almuerzo"), so the array is left open
  * (capped at a sane upper bound, not 1) — capping this at maxItems: 1 previously
- * made it impossible for the model to ever return more than one expense.
+ * made it impossible for the model to ever return more than one expense. The cap
+ * is kept modest (not, say, 20) because Gemini's structured-output mode rejects
+ * schemas outright with "too many states for serving" once a nested array's
+ * length limit gets too large for its item schema's complexity — 8 covers any
+ * realistic single sentence while staying well inside that budget.
  */
 export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
   type: 'object',
@@ -151,7 +155,7 @@ export const EXPENSE_EXTRACTION_JSON_SCHEMA = {
     expenses: {
       type: 'array',
       minItems: 1,
-      maxItems: 20,
+      maxItems: 8,
       items: EXPENSE_ITEM_SCHEMA,
     },
   },
