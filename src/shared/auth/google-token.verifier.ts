@@ -11,17 +11,25 @@ export interface GoogleProfile {
 
 @Injectable()
 export class GoogleTokenVerifier {
-  private readonly client: OAuth2Client;
+  private readonly client = new OAuth2Client();
 
-  constructor(private readonly config: ConfigService) {
-    this.client = new OAuth2Client(config.getOrThrow<string>('google.clientId'));
-  }
+  constructor(private readonly config: ConfigService) {}
 
   async verifyIdToken(idToken: string): Promise<GoogleProfile> {
+    // Comma-separated, same convention as APPLE_CLIENT_ID — one API instance validates
+    // Android (Web Client ID) and every iOS build's own Client ID as equally valid audiences.
+    const configuredAudience = this.config.get<string>('google.clientId');
+    const audience = configuredAudience
+      ?.split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!audience?.length) {
+      throw new UnauthorizedException('Google Sign In is not configured');
+    }
     try {
       const ticket = await this.client.verifyIdToken({
         idToken,
-        audience: this.config.getOrThrow<string>('google.clientId'),
+        audience,
       });
       const payload: TokenPayload | undefined = ticket.getPayload();
       if (!payload?.sub || !payload.email) {

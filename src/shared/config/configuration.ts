@@ -7,6 +7,8 @@ export default () => ({
     refreshExpires: process.env.JWT_REFRESH_EXPIRES ?? '7d',
   },
   google: {
+    // Comma-separated — Android's Web Client ID plus one iOS Client ID per bundle id/build.
+    // Same convention as apple.clientId below.
     clientId: process.env.GOOGLE_CLIENT_ID,
   },
   apple: {
