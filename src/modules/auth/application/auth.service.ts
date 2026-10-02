@@ -282,6 +282,9 @@ export class AuthService {
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
+      if (user.activeSessionId && user.activeSessionId !== payload.sessionId) {
+        throw new UnauthorizedException('Session was signed out from another device');
+      }
       return {
         accessToken: cached.accessToken,
         refreshToken: cached.refreshToken,

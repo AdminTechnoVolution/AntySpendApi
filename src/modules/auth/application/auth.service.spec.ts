@@ -458,6 +458,19 @@ describe('AuthService profile', () => {
       expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
+    it('rejects cached rotation tokens after a newer login supersedes the session', async () => {
+      jwtService.verifyAsync.mockResolvedValue({ sub: userId, type: 'refresh', sessionId: 'old' });
+      refreshTokenModel.findOne
+        .mockResolvedValueOnce({ revoked: true })
+        .mockResolvedValueOnce({ revoked: true, rotationResult: {
+          accessToken: 'old-access', refreshToken: 'old-refresh', issuedAtMillis: Date.now(),
+        } });
+      findById.mockReturnValue({ lean: jest.fn().mockResolvedValue({
+        _id: { toString: () => userId }, activeSessionId: 'new',
+      }) });
+      await expect(service.refresh('refresh-jwt')).rejects.toThrow('Session was signed out from another device');
+    });
+
     it('rejects when revoked with a stale or missing rotation result', async () => {
       refreshTokenModel.findOne
         .mockResolvedValueOnce({ revoked: true })
