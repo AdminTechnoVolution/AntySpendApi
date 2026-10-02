@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { EntitlementsService } from './entitlements.service';
 import { PlayBillingVerificationService } from './play-billing-verification.service';
 import { AppleBillingVerificationService } from './apple-billing-verification.service';
@@ -594,6 +598,30 @@ describe('EntitlementsService', () => {
       await expect(
         service.verifyPurchase(userId, 'unknown_product', 'token'),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects with a clean conflict instead of crashing when the purchase token is already claimed by a different account', async () => {
+      verifySubscription.mockResolvedValue({
+        expiryTimeMillis: futureExpiry,
+        autoRenewing: true,
+        orderId: 'GPA.shared',
+      });
+      productIdToPlanType.mockReturnValue(PLAN_TYPE.PERSONAL);
+      findOneAndUpdate.mockReturnValue({
+        lean: jest.fn().mockRejectedValue(
+          Object.assign(new Error('duplicate key'), {
+            code: 11000,
+            keyPattern: { googlePlayPurchaseToken: 1 },
+          }),
+        ),
+      });
+      findOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({ userId: ownerId }),
+      });
+
+      await expect(
+        service.verifyPurchase(userId, PLAY_PRODUCT_PERSONAL, 'shared-token'),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 

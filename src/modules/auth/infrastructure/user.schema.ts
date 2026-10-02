@@ -23,6 +23,11 @@ export class User {
 
   @Prop({ required: true })
   updatedAtMillis!: number;
+
+  /** Set to a new random id on every login; a valid JWT must carry a matching sessionId to be
+   * accepted, so logging in on a new device signs the others out on their next request. */
+  @Prop()
+  activeSessionId?: string;
 }
 
 export type UserDocument = HydratedDocument<User>;

@@ -6,17 +6,20 @@ describe('AuthService profile', () => {
   const findOneAndUpdate = jest.fn();
   const findByIdAndUpdate = jest.fn();
   const findById = jest.fn();
+  const updateOne = jest.fn();
   const userModel = {
     findOne,
     findOneAndUpdate,
     findByIdAndUpdate,
     findById,
+    updateOne,
   };
 
   const refreshTokenModel = {
     findOneAndUpdate: jest.fn(),
     findOne: jest.fn(),
     updateOne: jest.fn(),
+    updateMany: jest.fn(),
     create: jest.fn(),
   };
 
@@ -180,6 +183,21 @@ describe('AuthService profile', () => {
           $set: expect.objectContaining({ name: googleProfile.name }),
         }),
         expect.any(Object),
+      );
+    });
+
+    it('starts a new session, revoking other devices on login', async () => {
+      findByUserId.mockResolvedValue(null);
+
+      await service.loginWithGoogle('id-token');
+
+      expect(updateOne).toHaveBeenCalledWith(
+        { _id: userId },
+        { $set: { activeSessionId: expect.any(String) } },
+      );
+      expect(refreshTokenModel.updateMany).toHaveBeenCalledWith(
+        { userId, revoked: false },
+        { $set: { revoked: true } },
       );
     });
   });
@@ -384,6 +402,30 @@ describe('AuthService profile', () => {
         }),
         { returnDocument: 'after' },
       );
+    });
+
+    it('rejects a refresh token whose session was superseded by a newer login elsewhere', async () => {
+      jwtService.verifyAsync.mockResolvedValue({
+        sub: userId,
+        type: 'refresh',
+        sessionId: 'old-session',
+      });
+      refreshTokenModel.findOne.mockResolvedValue({
+        revoked: false,
+        expiresAt: new Date(Date.now() + 60_000),
+      });
+      findById.mockResolvedValue({
+        _id: { toString: () => userId },
+        email: googleProfile.email,
+        name: 'Google Name',
+        picture: googleProfile.picture,
+        activeSessionId: 'new-session',
+      });
+
+      await expect(service.refresh('refresh-jwt')).rejects.toThrow(
+        'Session was signed out from another device',
+      );
+      expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
     it('reuses the winning rotation result when it loses the concurrent-refresh race', async () => {

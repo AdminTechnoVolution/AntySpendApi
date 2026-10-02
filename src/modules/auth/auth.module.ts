@@ -40,6 +40,10 @@ import {
   WalletSchema,
 } from '../../shared/database/entity.schemas';
 import {
+  UserEntitlement,
+  UserEntitlementSchema,
+} from '../households/infrastructure/household.schemas';
+import {
   RefreshToken,
   RefreshTokenSchema,
   User,
@@ -74,6 +78,7 @@ import { AppleTokenVerifier } from '../../shared/auth/apple-token.verifier';
       { name: SavingsMovement.name, schema: SavingsMovementSchema },
       { name: Investment.name, schema: InvestmentSchema },
       { name: InvestmentMovement.name, schema: InvestmentMovementSchema },
+      { name: UserEntitlement.name, schema: UserEntitlementSchema },
     ]),
     forwardRef(() => SettingsModule),
   ],

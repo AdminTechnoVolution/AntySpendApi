@@ -36,6 +36,10 @@ import {
   WalletDocument,
 } from '../../../shared/database/entity.schemas';
 import {
+  UserEntitlement,
+  UserEntitlementDocument,
+} from '../../households/infrastructure/household.schemas';
+import {
   SyncMetadata,
   SyncMetadataDocument,
 } from '../../../shared/sync/sync-metadata.schema';
@@ -83,6 +87,8 @@ export class AccountDeletionService {
     private readonly refreshTokenModel: Model<RefreshTokenDocument>,
     @InjectModel(SyncMetadata.name)
     private readonly syncMetadataModel: Model<SyncMetadataDocument>,
+    @InjectModel(UserEntitlement.name)
+    private readonly entitlementModel: Model<UserEntitlementDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {
     this.syncEntityModels = [
@@ -112,6 +118,10 @@ export class AccountDeletionService {
 
     await this.refreshTokenModel.deleteMany({ userId });
     await this.syncMetadataModel.deleteMany({ userId });
+    // Without this, a re-created account (same Google/Apple identity, new userId after
+    // deletion) can collide on the still-unique googlePlayPurchaseToken/appStoreOriginalTransactionId
+    // left behind by the deleted user's orphaned entitlement — breaking purchase verification.
+    await this.entitlementModel.deleteOne({ userId });
     await this.userModel.findByIdAndDelete(userId);
 
     this.logger.log(`Deleted account and all data for user ${userId}`);

@@ -75,12 +75,18 @@ export class AuthService {
     await this.settingsService.ensureForUser(user._id.toString(), profile);
 
     const userId = user._id.toString();
-    return this.issueTokens(userId, user.email, {
-      id: userId,
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
-    });
+    const sessionId = await this.startNewSession(userId);
+    return this.issueTokens(
+      userId,
+      user.email,
+      {
+        id: userId,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+      sessionId,
+    );
   }
 
   async loginWithApple(
@@ -158,12 +164,36 @@ export class AuthService {
       picture: user.picture,
     });
     const userId = user._id.toString();
-    return this.issueTokens(userId, user.email, {
-      id: userId,
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
-    });
+    const sessionId = await this.startNewSession(userId);
+    return this.issueTokens(
+      userId,
+      user.email,
+      {
+        id: userId,
+        email: user.email,
+        name: user.name,
+        picture: user.picture,
+      },
+      sessionId,
+    );
+  }
+
+  /**
+   * Starts a fresh session for this user: a new sessionId that invalidates every previously
+   * issued token on its next use (see JwtStrategy.validate / refresh below), plus an explicit
+   * revoke of outstanding refresh tokens so other devices can't silently rotate past it either.
+   */
+  private async startNewSession(userId: string): Promise<string> {
+    const sessionId = generateId();
+    await this.userModel.updateOne(
+      { _id: userId },
+      { $set: { activeSessionId: sessionId } },
+    );
+    await this.refreshTokenModel.updateMany(
+      { userId, revoked: false },
+      { $set: { revoked: true } },
+    );
+    return sessionId;
   }
 
   async refresh(refreshToken: string) {
@@ -196,13 +226,25 @@ export class AuthService {
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
+      // A newer login elsewhere already overwrote activeSessionId — this refresh token belongs
+      // to a superseded session and must not be allowed to rotate into a fresh one.
+      if (user.activeSessionId && user.activeSessionId !== payload.sessionId) {
+        throw new UnauthorizedException(
+          'Session was signed out from another device',
+        );
+      }
 
-      const tokens = await this.issueTokens(user._id.toString(), user.email, {
-        id: user._id.toString(),
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-      });
+      const tokens = await this.issueTokens(
+        user._id.toString(),
+        user.email,
+        {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          picture: user.picture,
+        },
+        payload.sessionId,
+      );
 
       // Revoke and cache the rotation result in one atomic write, so a concurrent caller
       // that loses this race can never observe "revoked" without a usable rotationResult.
@@ -318,16 +360,21 @@ export class AuthService {
     userId: string,
     email: string,
     user: { id: string; email: string; name: string; picture?: string },
+    sessionId?: string,
   ) {
     const accessPayload: AntyJwtPayload = {
       sub: userId,
       email,
       type: 'access',
+      sessionId,
+      jti: generateId(),
     };
     const refreshPayload: AntyJwtPayload = {
       sub: userId,
       email,
       type: 'refresh',
+      sessionId,
+      jti: generateId(),
     };
 
     const accessExpires =

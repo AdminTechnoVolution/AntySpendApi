@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -246,32 +247,58 @@ export class EntitlementsService {
       now,
     );
 
-    const doc = await this.entitlementModel
-      .findOneAndUpdate(
-        { userId },
-        {
-          $set: {
-            planType,
-            source: ENTITLEMENT_SOURCE.PLAY_STORE,
-            status,
-            googlePlayProductId: productId,
-            googlePlayPurchaseToken: purchaseToken,
-            googlePlayOrderId: verified.orderId,
-            packageName: resolvedPackageName,
-            autoRenewing: verified.autoRenewing,
-            expiresAtMillis,
-            updatedAtMillis: now,
+    let doc: EntitlementLean | null;
+    try {
+      doc = await this.entitlementModel
+        .findOneAndUpdate(
+          { userId },
+          {
+            $set: {
+              planType,
+              source: ENTITLEMENT_SOURCE.PLAY_STORE,
+              status,
+              googlePlayProductId: productId,
+              googlePlayPurchaseToken: purchaseToken,
+              googlePlayOrderId: verified.orderId,
+              packageName: resolvedPackageName,
+              autoRenewing: verified.autoRenewing,
+              expiresAtMillis,
+              updatedAtMillis: now,
+            },
+            $setOnInsert: {
+              userId,
+              createdAtMillis: now,
+            },
           },
-          $setOnInsert: {
-            userId,
-            createdAtMillis: now,
-          },
-        },
-        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
-      )
-      .lean();
+          { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
+        )
+        .lean();
+    } catch (error) {
+      // googlePlayPurchaseToken is globally unique (one Play purchase can only back one
+      // account's entitlement at a time) — a different userId already claimed this exact
+      // token. Surface a clean, specific error instead of letting the raw Mongo duplicate-key
+      // exception bubble up as an unhandled 500 that the client just retries forever.
+      if (this.isDuplicateKeyError(error, 'googlePlayPurchaseToken')) {
+        const owner = await this.entitlementModel
+          .findOne({ googlePlayPurchaseToken: purchaseToken })
+          .lean();
+        this.logger.warn(
+          `verifyPurchase: purchaseToken already claimed by userId=${owner?.userId} ` +
+            `(requested by userId=${userId}) — refusing to reassign automatically.`,
+        );
+        throw new ConflictException(
+          'This purchase is already linked to a different account.',
+        );
+      }
+      throw error;
+    }
 
     return this.toEntitlementResponse(doc!);
+  }
+
+  private isDuplicateKeyError(error: unknown, field: string): boolean {
+    const mongoError = error as { code?: number; keyPattern?: Record<string, unknown> };
+    return mongoError?.code === 11000 && field in (mongoError.keyPattern ?? {});
   }
 
   /**

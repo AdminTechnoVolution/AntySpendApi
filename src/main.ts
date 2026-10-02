@@ -20,6 +20,12 @@ async function bootstrap() {
   const expressApp = app.getHttpAdapter().getInstance();
   expressApp.set('trust proxy', 1);
   app.use(mongoSanitizeMiddleware);
+  // TEMP diagnostic logging — remove before finishing.
+  app.use((req: any, res: any, next: any) => {
+    console.log(`[REQ] ${req.method} ${req.originalUrl} auth=${req.headers.authorization ? 'yes' : 'no'}`);
+    res.on('finish', () => console.log(`[RES] ${req.method} ${req.originalUrl} -> ${res.statusCode}`));
+    next();
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

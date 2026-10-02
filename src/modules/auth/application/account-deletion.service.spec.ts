@@ -25,6 +25,7 @@ describe('AccountDeletionService', () => {
   const investmentMovementModel = makeModel();
   const refreshTokenModel = makeModel();
   const syncMetadataModel = makeModel();
+  const entitlementModel = { deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }) };
   const userModel = {
     findByIdAndDelete: jest.fn().mockResolvedValue({ _id: userId }),
   };
@@ -52,6 +53,7 @@ describe('AccountDeletionService', () => {
       investmentMovementModel as never,
       refreshTokenModel as never,
       syncMetadataModel as never,
+      entitlementModel as never,
       userModel as never,
     );
   });
@@ -86,6 +88,7 @@ describe('AccountDeletionService', () => {
 
     expect(refreshTokenModel.deleteMany).toHaveBeenCalledWith({ userId });
     expect(syncMetadataModel.deleteMany).toHaveBeenCalledWith({ userId });
+    expect(entitlementModel.deleteOne).toHaveBeenCalledWith({ userId });
     expect(userModel.findByIdAndDelete).toHaveBeenCalledWith(userId);
   });
 });
