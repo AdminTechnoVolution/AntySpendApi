@@ -245,7 +245,7 @@ export class HouseholdService {
       throw new ConflictException('ALREADY_IN_HOUSEHOLD');
     }
 
-    await this.assertMemberCapacity(invite.householdId);
+    await this.assertMemberCapacity(invite.householdId, true);
 
     const user = await this.userModel.findById(userId).lean();
     if (!user) {
@@ -401,12 +401,12 @@ export class HouseholdService {
     );
   }
 
-  private async assertMemberCapacity(householdId: string) {
+  private async assertMemberCapacity(householdId: string, acceptingInvite = false) {
     const activeCount = await this.memberModel.countDocuments({
       householdId,
       status: MEMBER_STATUS.ACTIVE,
     });
-    const pendingCount = await this.inviteModel.countDocuments({
+    const pendingCount = acceptingInvite ? 0 : await this.inviteModel.countDocuments({
       householdId,
       status: INVITE_STATUS.PENDING,
       expiresAtMillis: { $gt: Date.now() },

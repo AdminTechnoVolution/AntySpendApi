@@ -16,7 +16,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../../../shared/auth/jwt-auth.guard';
+import { JwtAuthGuard, SkipSubscriptionCheck } from '../../../shared/auth/jwt-auth.guard';
 import { CurrentUser } from '../../../shared/auth/current-user.decorator';
 import type { AuthenticatedUser } from '../../../shared/auth/jwt-payload.interface';
 import { ApiStandardAuthResponses } from '../../../shared/swagger/common-responses.decorator';
@@ -59,6 +59,7 @@ export class HouseholdsController {
   }
 
   @Post('invites/:token/accept')
+  @SkipSubscriptionCheck()
   @ApiOperation({ summary: 'Accept a household invite by token' })
   @ApiOkResponse({ description: 'Accepted household membership' })
   @ApiStandardAuthResponses()

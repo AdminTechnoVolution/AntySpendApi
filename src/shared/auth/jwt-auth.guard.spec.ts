@@ -1,5 +1,6 @@
 import { ForbiddenException } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
+import { HouseholdsController } from '../../modules/households/presentation/households.controller';
 import { JwtAuthGuard, SkipSubscriptionCheck } from './jwt-auth.guard';
 
 describe('JwtAuthGuard subscription-write check', () => {
@@ -85,6 +86,20 @@ describe('JwtAuthGuard subscription-write check', () => {
     const { context, reflector } = buildContext('GET', {});
     guard = buildGuard(reflector);
 
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(getMyEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('only exempts invitation acceptance on the household controller', async () => {
+    const reflector = new Reflector();
+    expect(reflector.get('skipSubscriptionCheck', HouseholdsController.prototype.acceptInvite)).toBe(true);
+    expect(reflector.get('skipSubscriptionCheck', HouseholdsController)).toBeUndefined();
+    expect(reflector.get('skipSubscriptionCheck', HouseholdsController.prototype.createInvite)).toBeUndefined();
+    const { context, reflector: mockReflector } = buildContext('POST', {
+      skipSubscriptionCheck: reflector.get('skipSubscriptionCheck', HouseholdsController.prototype.acceptInvite),
+    });
+    guard = buildGuard(mockReflector);
+    getMyEntitlement.mockResolvedValue({ premiumAccessActive: false });
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(getMyEntitlement).not.toHaveBeenCalled();
   });

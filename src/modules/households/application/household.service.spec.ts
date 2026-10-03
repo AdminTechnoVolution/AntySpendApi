@@ -371,6 +371,28 @@ describe('HouseholdService', () => {
   });
 
   describe('acceptInvite', () => {
+    it('accepts the reserved fifth seat even with pending invites', async () => {
+      inviteFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({
+        id: 'reserved', token: 'ABC123', householdId, status: INVITE_STATUS.PENDING,
+        expiresAtMillis: Date.now() + 60000,
+      }) });
+      memberCountDocuments.mockResolvedValue(4);
+      inviteCountDocuments.mockResolvedValue(1);
+      memberCreate.mockImplementation(data => ({ toObject: () => data }));
+      await expect(service.acceptInvite('ABC123', memberId, 'member@example.com')).resolves.toBeDefined();
+      expect(inviteCountDocuments).not.toHaveBeenCalled();
+    });
+
+    it('rejects acceptance when all five seats are occupied', async () => {
+      inviteFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({
+        id: 'reserved', token: 'ABC123', householdId, status: INVITE_STATUS.PENDING,
+        expiresAtMillis: Date.now() + 60000,
+      }) });
+      memberCountDocuments.mockResolvedValue(5);
+      await expect(service.acceptInvite('ABC123', memberId, 'member@example.com')).rejects.toThrow('HOUSEHOLD_MEMBER_LIMIT');
+      expect(memberCreate).not.toHaveBeenCalled();
+    });
+
     const token = 'invite-token-hex';
 
     it('returns the household and joined membership in the nested API shape', async () => {
