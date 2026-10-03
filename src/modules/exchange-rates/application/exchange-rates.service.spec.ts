@@ -47,6 +47,25 @@ describe('ExchangeRatesService three daily windows', () => {
     });
   }
 
+  it.each([ [5, 45, 6, 30], [6, 10, 6, 30], [6, 30, 12, 30],
+    [12, 10, 12, 30], [12, 30, 18, 30], [18, 10, 18, 30] ])(
+    'reports the next delayed boundary at %i:%i', async (hour, minute, nextHour, nextMinute) => {
+      const now = new Date(2026, 5, 6, hour, minute).getTime();
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+      mockFindOneLean({ baseCurrency: 'USD', rates: apiRates, fetchedAtMillis: now });
+      const result = await service.getLatestForClient();
+      expect(result.serverTimeMillis).toBe(now);
+      expect(result.nextRefreshAtMillis).toBe(new Date(2026, 5, 6, nextHour, nextMinute).getTime());
+    });
+
+  it('schedules the next morning after the last delayed boundary', async () => {
+    const now = new Date(2026, 5, 6, 18, 30).getTime();
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    mockFindOneLean({ baseCurrency: 'USD', rates: apiRates, fetchedAtMillis: now });
+    expect((await service.getLatestForClient()).nextRefreshAtMillis)
+      .toBe(new Date(2026, 5, 7, 6, 30).getTime());
+  });
+
   it('returns today snapshot without calling ExchangeRate-API', async () => {
     const snapshot = {
       baseCurrency: 'USD',

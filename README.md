@@ -140,7 +140,9 @@ Shared cross-cutting code lives in `src/shared/` (config, auth, sync LWW, OpenRo
 
 ### Exchange rates
 
-- `GET /exchange-rates/latest` — USD-based rates (Mongo cache, 1 snapshot/día UTC)
+- `GET /exchange-rates/latest` — authenticated USD-based rates. Mongo snapshots refresh lazily in three server-local windows: 06:00, 12:00 and 18:00.
+- Responses include `serverTimeMillis` and `nextRefreshAtMillis`. Android and iOS persist the snapshot and wait until the next boundary plus 30 minutes (06:30, 12:30, 18:30 in the server zone). Requests during a grace period expire at its end.
+- Refresh is on demand (Android also checks periodically); missed windows are not replayed. Concurrent requests share one fetch. On network failure the previous snapshot remains available and retries wait 30 minutes. Deploy the API metadata before the apps; older servers use a six-hour client fallback.
 
 ### CRUD (Bearer JWT, scoped by userId)
 

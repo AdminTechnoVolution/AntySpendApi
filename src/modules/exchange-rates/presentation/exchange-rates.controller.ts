@@ -25,6 +25,6 @@ export class ExchangeRatesController {
   @ApiOkResponse({ type: ExchangeRatesResponseDto })
   @ApiStandardAuthResponses()
   getLatest() {
-    return this.exchangeRatesService.getLatest();
+    return this.exchangeRatesService.getLatestForClient();
   }
 }

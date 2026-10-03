@@ -42,6 +42,17 @@ export class ExchangeRatesService {
     private readonly config: ConfigService,
   ) {}
 
+  async getLatestForClient() {
+    const now = Date.now();
+    const snapshot = await this.getLatest();
+    return {
+      ...snapshot,
+      serverTimeMillis: now,
+      // Delay each server-local boundary by 30 minutes, including requests in that grace period.
+      nextRefreshAtMillis: nextSlotEndMillis(new Date(now - 30 * 60_000)) + 1 + 30 * 60_000,
+    };
+  }
+
   async getLatest() {
     const now = Date.now();
     const slotKey = snapshotKey(new Date(now));
