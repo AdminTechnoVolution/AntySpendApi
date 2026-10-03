@@ -75,7 +75,9 @@ describe('HouseholdService', () => {
       entitlementsService,
     );
 
-    householdFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+    householdFindOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue(null),
+    });
     memberFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
     memberFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
     inviteFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
@@ -292,6 +294,32 @@ describe('HouseholdService', () => {
   });
 
   describe('createHousehold', () => {
+    it('returns the created household and owner membership in the nested API shape', async () => {
+      requireFamilyPlan.mockResolvedValue(undefined);
+      householdCreate.mockImplementation((data) => ({ toObject: () => data }));
+      memberCreate.mockImplementation((data) => ({
+        toObject: () => ({ ...data, id: memberId }),
+      }));
+
+      const result = await service.createHousehold(ownerId, 'Family');
+
+      expect(result).toMatchObject({
+        household: {
+          ownerUserId: ownerId,
+          name: 'Family',
+          planType: 'FAMILY',
+        },
+        membership: {
+          id: memberId,
+          userId: ownerId,
+          role: MEMBER_ROLE.OWNER,
+          status: MEMBER_STATUS.ACTIVE,
+        },
+      });
+      expect(result.household.id).toMatch(/^[a-f0-9]{32}$/);
+      expect(result.membership.householdId).toBe(result.household.id);
+    });
+
     it('requires FAMILY entitlement', async () => {
       requireFamilyPlan.mockRejectedValue(
         new ForbiddenException('FAMILY_PLAN_REQUIRED'),
@@ -344,6 +372,192 @@ describe('HouseholdService', () => {
 
   describe('acceptInvite', () => {
     const token = 'invite-token-hex';
+
+    it('returns the household and joined membership in the nested API shape', async () => {
+      inviteFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: 'invite-1',
+          householdId,
+          token,
+          status: INVITE_STATUS.PENDING,
+          expiresAtMillis: Date.now() + 60_000,
+        }),
+      });
+      memberCreate.mockImplementation((data) => ({
+        toObject: () => ({ ...data, id: memberId }),
+      }));
+      householdFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          id: householdId,
+          ownerUserId: ownerId,
+          name: 'Family',
+          planType: 'FAMILY',
+          maxMembers: 5,
+          createdAtMillis: 1_000,
+          updatedAtMillis: 2_000,
+        }),
+      });
+
+      const result = await service.acceptInvite(
+        token,
+        memberId,
+        'member@example.com',
+      );
+
+      expect(result).toMatchObject({
+        household: { id: householdId, ownerUserId: ownerId, name: 'Family' },
+        membership: {
+          id: memberId,
+          householdId,
+          userId: memberId,
+          role: MEMBER_ROLE.MEMBER,
+          status: MEMBER_STATUS.ACTIVE,
+        },
+      });
+      expect(inviteUpdateOne).toHaveBeenCalledWith(
+        { id: 'invite-1' },
+        expect.objectContaining({
+          $set: expect.objectContaining({ status: INVITE_STATUS.ACCEPTED }),
+        }),
+      );
+    });
+
+    it('completes household creation, invite, acceptance, and member refresh as one flow', async () => {
+      const households: Array<Record<string, unknown>> = [];
+      const members: Array<Record<string, unknown>> = [];
+      const invites: Array<Record<string, unknown>> = [];
+      const matches = (
+        record: Record<string, unknown>,
+        query: Record<string, unknown>,
+      ) =>
+        Object.entries(query).every(([key, value]) => {
+          if (
+            key === 'expiresAtMillis' &&
+            typeof value === 'object' &&
+            value !== null &&
+            '$gt' in value
+          ) {
+            return Number(record[key]) > Number((value as { $gt: number }).$gt);
+          }
+          return record[key] === value;
+        });
+
+      requireFamilyPlan.mockResolvedValue(undefined);
+      getPlanType.mockImplementation(async (userId: string) =>
+        userId === ownerId ? 'FAMILY' : 'PERSONAL',
+      );
+      hasActiveFamilyPlan.mockImplementation(
+        async (userId: string) => userId === ownerId,
+      );
+      userFindById.mockImplementation((userId: string) => ({
+        lean: jest
+          .fn()
+          .mockResolvedValue(
+            userId === ownerId
+              ? { _id: ownerId, name: 'Owner', email: 'owner@example.com' }
+              : { _id: memberId, name: 'Member', email: 'member@example.com' },
+          ),
+      }));
+      householdCreate.mockImplementation(
+        async (record: Record<string, unknown>) => {
+          households.push(record);
+          return { toObject: () => record };
+        },
+      );
+      householdFindOne.mockImplementation((query: Record<string, unknown>) => ({
+        lean: jest
+          .fn()
+          .mockResolvedValue(
+            households.find((record) => matches(record, query)) ?? null,
+          ),
+      }));
+      memberCreate.mockImplementation(
+        async (record: Record<string, unknown>) => {
+          members.push(record);
+          return { toObject: () => record };
+        },
+      );
+      memberFindOne.mockImplementation((query: Record<string, unknown>) => ({
+        lean: jest
+          .fn()
+          .mockResolvedValue(
+            members.find((record) => matches(record, query)) ?? null,
+          ),
+      }));
+      memberFind.mockImplementation((query: Record<string, unknown>) => ({
+        lean: jest
+          .fn()
+          .mockResolvedValue(
+            members.filter((record) => matches(record, query)),
+          ),
+      }));
+      memberCountDocuments.mockImplementation(
+        async (query: Record<string, unknown>) =>
+          members.filter((record) => matches(record, query)).length,
+      );
+      inviteCreate.mockImplementation(
+        async (record: Record<string, unknown>) => {
+          invites.push(record);
+          return { toObject: () => record };
+        },
+      );
+      inviteFindOne.mockImplementation((query: Record<string, unknown>) => ({
+        lean: jest
+          .fn()
+          .mockResolvedValue(
+            invites.find((record) => matches(record, query)) ?? null,
+          ),
+      }));
+      inviteFind.mockImplementation((query: Record<string, unknown>) => ({
+        lean: jest
+          .fn()
+          .mockResolvedValue(
+            invites.filter((record) => matches(record, query)),
+          ),
+      }));
+      inviteCountDocuments.mockImplementation(
+        async (query: Record<string, unknown>) =>
+          invites.filter((record) => matches(record, query)).length,
+      );
+      inviteUpdateOne.mockImplementation(
+        async (
+          query: Record<string, unknown>,
+          update: { $set: Record<string, unknown> },
+        ) => {
+          const invite = invites.find((record) => matches(record, query));
+          if (invite) Object.assign(invite, update.$set);
+        },
+      );
+
+      const created = await service.createHousehold(ownerId, 'Cordoba home');
+      const invite = await service.createInvite(
+        created.household.id,
+        ownerId,
+        'member@example.com',
+      );
+      const accepted = await service.acceptInvite(
+        invite.token,
+        memberId,
+        'member@example.com',
+      );
+      const joinedSnapshot = await service.getMyHousehold(memberId);
+
+      expect(accepted.household).toMatchObject({
+        id: created.household.id,
+        name: 'Cordoba home',
+      });
+      expect(accepted.membership).toMatchObject({
+        householdId: created.household.id,
+        userId: memberId,
+        role: MEMBER_ROLE.MEMBER,
+        status: MEMBER_STATUS.ACTIVE,
+      });
+      expect(joinedSnapshot.currentUserId).toBe(memberId);
+      expect(joinedSnapshot.currentUserRole).toBe(MEMBER_ROLE.MEMBER);
+      expect(joinedSnapshot.familyFeaturesActive).toBe(true);
+      expect(joinedSnapshot.members).toHaveLength(2);
+      expect(invites[0].status).toBe(INVITE_STATUS.ACCEPTED);
+    });
 
     it('rejects when invite email does not match authenticated user', async () => {
       inviteFindOne.mockReturnValue({
