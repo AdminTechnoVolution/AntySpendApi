@@ -86,6 +86,11 @@ export class EntitlementsService {
     return doc.planType === PLAN_TYPE.FAMILY;
   }
 
+  async getFamilyPlanExpiresAtMillis(userId: string): Promise<number | null> {
+    const doc = await this.entitlementModel.findOne({ userId }).lean();
+    return doc?.planType === PLAN_TYPE.FAMILY ? doc.expiresAtMillis ?? null : null;
+  }
+
   async requireFamilyPlan(userId: string): Promise<void> {
     const planType = await this.getPlanType(userId);
     if (planType !== PLAN_TYPE.FAMILY) {

@@ -49,7 +49,7 @@ export class HouseholdFamilyService {
     householdId: string,
     status?: string,
   ): Promise<SplitWithLines[]> {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     const filter: Record<string, unknown> = {
       householdId,
       deletedAtMillis: { $exists: false },
@@ -79,7 +79,7 @@ export class HouseholdFamilyService {
     body: CreateExpenseSplitDto,
     idempotencyKey?: string,
   ): Promise<SplitWithLines> {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     const existing = await this.expenseSplitModel
       .findOne({
         householdId,
@@ -150,7 +150,7 @@ export class HouseholdFamilyService {
     splitId: string,
     body: UpdateExpenseSplitDto,
   ): Promise<SplitWithLines> {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     const existing = await this.expenseSplitModel
       .findOne({
         householdId,
@@ -190,7 +190,7 @@ export class HouseholdFamilyService {
     body: CreateSettlementDto,
     idempotencyKey?: string,
   ): Promise<Settlement> {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     const now = Date.now();
     const id = idempotencyKey ? idempotencyKey.slice(0, 32) : newEntityId();
     const doc = await this.settlementModel
@@ -223,7 +223,7 @@ export class HouseholdFamilyService {
     userId: string,
     householdId: string,
   ): Promise<Settlement[]> {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     return this.settlementModel
       .find({ householdId, deletedAtMillis: { $exists: false } })
       .sort({ settledAtMillis: -1 })
@@ -231,7 +231,7 @@ export class HouseholdFamilyService {
   }
 
   async getBalances(userId: string, householdId: string) {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     const memberIds = await this.authz.getActiveMemberUserIds(householdId);
     const splits = await this.listSplits(userId, householdId, 'OPEN');
     const settlements = await this.listSettlements(userId, householdId);
@@ -331,7 +331,7 @@ export class HouseholdFamilyService {
     householdId: string,
     budgetId: string,
   ): Promise<BudgetMemberQuota[]> {
-    await this.authz.assertActiveMember(userId, householdId);
+    await this.authz.assertActiveMember(userId, householdId, true);
     const budget = await this.budgetModel
       .findOne({
         householdId,

@@ -183,6 +183,19 @@ describe('HouseholdAuthzService', () => {
   });
 
   describe('assertActiveMember', () => {
+    it.each([OWNER_ID, MEMBER_ID])('blocks expired family resources for %s', async (userId) => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ userId, householdId: HOUSEHOLD_ID, status: MEMBER_STATUS.ACTIVE }) });
+      hasActiveFamilyPlan.mockResolvedValue(false);
+      await expect(service.assertActiveMember(userId, HOUSEHOLD_ID, true)).rejects.toThrow('FAMILY_PLAN_INACTIVE');
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(OWNER_ID);
+      await expect(service.assertActiveMember(userId, HOUSEHOLD_ID)).resolves.toBeDefined();
+    });
+    it('allows family resources when the owner plan is active', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ userId: MEMBER_ID, householdId: HOUSEHOLD_ID, status: MEMBER_STATUS.ACTIVE }) });
+      await expect(service.assertActiveMember(MEMBER_ID, HOUSEHOLD_ID, true)).resolves.toBeDefined();
+      expect(hasActiveFamilyPlan).toHaveBeenCalledWith(OWNER_ID);
+    });
+
     it('throws when user is not an active member', async () => {
       findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
 

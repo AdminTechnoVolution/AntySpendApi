@@ -52,12 +52,15 @@ export class HouseholdAuthzService {
     return members.map((m) => m.userId);
   }
 
-  async assertActiveMember(userId: string, householdId: string) {
+  async assertActiveMember(userId: string, householdId: string, requireActiveFamilyPlan = false) {
     const membership = await this.memberModel
       .findOne({ userId, householdId, status: MEMBER_STATUS.ACTIVE })
       .lean();
     if (!membership) {
       throw new ForbiddenException('NOT_HOUSEHOLD_MEMBER');
+    }
+    if (requireActiveFamilyPlan && !(await this.hasActiveFamilyFeatures(householdId))) {
+      throw new ForbiddenException("FAMILY_PLAN_INACTIVE");
     }
     return membership;
   }

@@ -58,7 +58,7 @@ export class FamilyViewService {
   ) {}
 
   async getFamilyView(householdId: string, requestingUserId: string) {
-    await this.authzService.assertActiveMember(requestingUserId, householdId);
+    await this.authzService.assertActiveMember(requestingUserId, householdId, true);
 
     const members = await this.memberModel
       .find({ householdId, status: MEMBER_STATUS.ACTIVE })

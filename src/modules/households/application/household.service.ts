@@ -86,6 +86,7 @@ export class HouseholdService {
     const familyFeaturesActive =
       await this.entitlementsService.hasActiveFamilyPlan(household.ownerUserId);
 
+    const familyAccessExpiresAtMillis = await this.entitlementsService.getFamilyPlanExpiresAtMillis(household.ownerUserId);
     const members = await this.memberModel
       .find({ householdId: membership.householdId, status: MEMBER_STATUS.ACTIVE })
       .lean();
@@ -108,6 +109,7 @@ export class HouseholdService {
       pendingInvites: pendingInvites.map((i) => toPlain(i)),
       planType,
       familyFeaturesActive,
+      familyAccessExpiresAtMillis,
       currentUserId: userId,
       currentUserRole: membership.role,
     };

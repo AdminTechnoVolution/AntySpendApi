@@ -57,6 +57,7 @@ describe('HouseholdService', () => {
     requireFamilyPlan,
     getPlanType,
     hasActiveFamilyPlan,
+    getFamilyPlanExpiresAtMillis: jest.fn().mockResolvedValue(null),
   } as unknown as EntitlementsService;
 
   let service: HouseholdService;
@@ -164,10 +165,13 @@ describe('HouseholdService', () => {
       });
       inviteFind.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
 
+      (entitlementsService.getFamilyPlanExpiresAtMillis as jest.Mock).mockResolvedValueOnce(123456);
       const result = await service.getMyHousehold(memberId);
 
       expect(hasActiveFamilyPlan).toHaveBeenCalledWith(ownerId);
       expect(hasActiveFamilyPlan).not.toHaveBeenCalledWith(memberId);
+      expect(entitlementsService.getFamilyPlanExpiresAtMillis).toHaveBeenCalledWith(ownerId);
+      expect(result.familyAccessExpiresAtMillis).toBe(123456);
       expect(result.familyFeaturesActive).toBe(true);
     });
 
