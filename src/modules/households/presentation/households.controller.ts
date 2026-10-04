@@ -122,6 +122,7 @@ export class HouseholdsController {
   }
 
   @Post(':id/leave')
+  @SkipSubscriptionCheck()
   @ApiOperation({ summary: 'Leave the household (members only)' })
   @ApiOkResponse({ description: 'Left household' })
   @ApiStandardAuthResponses()

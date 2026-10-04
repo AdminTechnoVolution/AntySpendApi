@@ -95,6 +95,26 @@ describe('HouseholdService', () => {
     });
   });
 
+  describe('leaveHousehold', () => {
+    it('allows a member to leave an expired household without entitlement checks', async () => {
+      memberFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ id: 'membership', role: MEMBER_ROLE.MEMBER }) });
+      await expect(service.leaveHousehold(householdId, memberId)).resolves.toEqual({ left: true });
+      expect(memberFindOne).toHaveBeenCalledWith({ householdId, userId: memberId, status: MEMBER_STATUS.ACTIVE });
+      expect(memberDeleteOne).toHaveBeenCalledWith({ id: 'membership' });
+      expect(requireFamilyPlan).not.toHaveBeenCalled();
+      expect(hasActiveFamilyPlan).not.toHaveBeenCalled();
+    });
+    it('continues preventing the owner from leaving', async () => {
+      memberFindOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ id: 'membership', role: MEMBER_ROLE.OWNER }) });
+      await expect(service.leaveHousehold(householdId, ownerId)).rejects.toThrow('OWNER_CANNOT_LEAVE');
+      expect(memberDeleteOne).not.toHaveBeenCalled();
+    });
+    it('rejects an account without membership', async () => {
+      await expect(service.leaveHousehold(householdId, memberId)).rejects.toThrow('MEMBER_NOT_FOUND');
+      expect(memberDeleteOne).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getMyHousehold', () => {
     it('includes planType from entitlements even without a household', async () => {
       getPlanType.mockResolvedValue('FAMILY');

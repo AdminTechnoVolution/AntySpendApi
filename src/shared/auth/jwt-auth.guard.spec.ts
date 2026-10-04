@@ -90,7 +90,7 @@ describe('JwtAuthGuard subscription-write check', () => {
     expect(getMyEntitlement).not.toHaveBeenCalled();
   });
 
-  it('only exempts invitation acceptance on the household controller', async () => {
+  it('exempts invitation acceptance without exempting household financial writes', async () => {
     const reflector = new Reflector();
     expect(reflector.get('skipSubscriptionCheck', HouseholdsController.prototype.acceptInvite)).toBe(true);
     expect(reflector.get('skipSubscriptionCheck', HouseholdsController)).toBeUndefined();
@@ -99,6 +99,19 @@ describe('JwtAuthGuard subscription-write check', () => {
       skipSubscriptionCheck: reflector.get('skipSubscriptionCheck', HouseholdsController.prototype.acceptInvite),
     });
     guard = buildGuard(mockReflector);
+    getMyEntitlement.mockResolvedValue({ premiumAccessActive: false });
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(getMyEntitlement).not.toHaveBeenCalled();
+  });
+
+  it('allows authenticated members to leave without a subscription', async () => {
+    const metadata = new Reflector();
+    expect(metadata.get('skipSubscriptionCheck', HouseholdsController.prototype.leave)).toBe(true);
+    expect(metadata.get('skipSubscriptionCheck', HouseholdsController.prototype.update)).toBeUndefined();
+    const { context, reflector } = buildContext('POST', {
+      skipSubscriptionCheck: metadata.get('skipSubscriptionCheck', HouseholdsController.prototype.leave),
+    });
+    guard = buildGuard(reflector);
     getMyEntitlement.mockResolvedValue({ premiumAccessActive: false });
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(getMyEntitlement).not.toHaveBeenCalled();
