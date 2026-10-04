@@ -323,6 +323,11 @@ export class SyncService {
 
     const serverVersion = await this.lwwService.getServerVersion(userId);
 
+    if (rejected.length > 0) {
+      const counts: Record<string, number> = {};
+      for (const item of rejected) counts[item.reason] = (counts[item.reason] ?? 0) + 1;
+      this.logger.warn(`Sync push rejected ${rejected.length} changes: ${JSON.stringify(counts)}`);
+    }
     return { accepted, rejected, noop, serverVersion };
   }
 
