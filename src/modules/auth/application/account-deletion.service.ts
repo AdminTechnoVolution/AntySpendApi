@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -8,6 +8,7 @@ import {
   BudgetMemberQuotaDocument,
   Category,
   CategoryDocument,
+  PersonalLoan, PersonalLoanDocument, PersonalLoanRepayment, PersonalLoanRepaymentDocument,
   DebtAccount,
   DebtAccountDocument,
   ExpenseSplit,
@@ -90,8 +91,12 @@ export class AccountDeletionService {
     @InjectModel(UserEntitlement.name)
     private readonly entitlementModel: Model<UserEntitlementDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @Optional() @InjectModel(PersonalLoan.name) personalLoanModel?: Model<PersonalLoanDocument>,
+    @Optional() @InjectModel(PersonalLoanRepayment.name) personalLoanRepaymentModel?: Model<PersonalLoanRepaymentDocument>,
   ) {
     this.syncEntityModels = [
+      ...(personalLoanModel ? [personalLoanModel as unknown as EntityModel] : []),
+      ...(personalLoanRepaymentModel ? [personalLoanRepaymentModel as unknown as EntityModel] : []),
       settingsModel as unknown as EntityModel,
       walletModel as unknown as EntityModel,
       categoryModel as unknown as EntityModel,

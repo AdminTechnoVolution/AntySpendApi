@@ -627,3 +627,30 @@ ExchangeRateSnapshotSchema.index(
   { baseCurrency: 1, snapshotDate: 1 },
   { unique: true },
 );
+
+@Schema({ collection: 'personal_loans', strict: true })
+export class PersonalLoan extends SyncableEntity {
+  @Prop({ required: true }) person!: string;
+  @Prop({ required: true }) amountMinor!: number;
+  @Prop({ required: true }) currencyCode!: string;
+  @Prop({ required: true }) walletServerId!: string;
+  @Prop({ required: true, enum: ['TRANSFER', 'CASH', 'OTHER'] }) method!: string;
+  @Prop({ required: true }) dateMillis!: number;
+  @Prop({ type: Object, default: {} }) repaymentAmounts!: Record<string, number>;
+}
+export type PersonalLoanDocument = HydratedDocument<PersonalLoan>;
+export const PersonalLoanSchema = SchemaFactory.createForClass(PersonalLoan);
+syncableIndexes(PersonalLoanSchema);
+
+@Schema({ collection: 'personal_loan_repayments', strict: true })
+export class PersonalLoanRepayment extends SyncableEntity {
+  @Prop({ required: true }) loanServerId!: string;
+  @Prop({ required: true }) amountMinor!: number;
+  @Prop({ required: true }) walletServerId!: string;
+  @Prop({ required: true, enum: ['TRANSFER', 'CASH', 'OTHER'] }) method!: string;
+  @Prop({ required: true }) dateMillis!: number;
+}
+export type PersonalLoanRepaymentDocument = HydratedDocument<PersonalLoanRepayment>;
+export const PersonalLoanRepaymentSchema = SchemaFactory.createForClass(PersonalLoanRepayment);
+syncableIndexes(PersonalLoanRepaymentSchema);
+PersonalLoanRepaymentSchema.index({ userId: 1, loanServerId: 1 });

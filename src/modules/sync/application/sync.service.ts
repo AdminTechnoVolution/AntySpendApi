@@ -30,6 +30,7 @@ import {
   BudgetMemberQuotaDocument,
   DebtAccount,
   DebtAccountDocument,
+  PersonalLoan, PersonalLoanDocument, PersonalLoanRepayment, PersonalLoanRepaymentDocument,
   DebtMovement,
   DebtMovementDocument,
   Merchant,
@@ -87,6 +88,10 @@ export class SyncService {
     @Optional()
     @InjectModel(DebtMovement.name)
     debtMovementModel: Model<DebtMovementDocument> = debtAccountModel as unknown as Model<DebtMovementDocument>,
+    @Optional() @InjectModel(PersonalLoan.name)
+    personalLoanModel: Model<PersonalLoanDocument> = debtAccountModel as unknown as Model<PersonalLoanDocument>,
+    @Optional() @InjectModel(PersonalLoanRepayment.name)
+    personalLoanRepaymentModel: Model<PersonalLoanRepaymentDocument> = debtAccountModel as unknown as Model<PersonalLoanRepaymentDocument>,
   ) {
     this.entityMap = {
       settings: settingsModel as unknown as EntityModel,
@@ -106,7 +111,50 @@ export class SyncService {
       budget_member_quotas: budgetMemberQuotaModel as unknown as EntityModel,
       debt_accounts: debtAccountModel as unknown as EntityModel,
       debt_movements: debtMovementModel as unknown as EntityModel,
+      personal_loans: personalLoanModel as unknown as EntityModel,
+      personal_loan_repayments: personalLoanRepaymentModel as unknown as EntityModel,
     };
+  }
+
+  private async validateLoanChange(userId: string, change: SyncChange, existing: Record<string, unknown> | null) {
+    const deleted = change.deletedAtMillis !== undefined;
+    const active = { userId, deletedAtMillis: { $exists: false } };
+    if (change.entityType === 'wallets' && (deleted || existing && change.payload.currencyCode && change.payload.currencyCode !== existing.currencyCode)) {
+      for (const type of ['personal_loans', 'personal_loan_repayments'] as const) {
+        if (await this.entityMap[type].exists({ ...active, walletServerId: change.entityId })) throw new Error('LOAN_WALLET_IN_USE');
+      }
+    }
+    if (change.entityType !== 'personal_loans' && change.entityType !== 'personal_loan_repayments') return;
+    if (change.payload.householdId || existing?.householdId) throw new Error('LOAN_PRIVATE_ONLY');
+    const data = { ...existing, ...change.payload };
+    if (!deleted) {
+      if (!Number.isSafeInteger(data.amountMinor) || Number(data.amountMinor) <= 0) throw new Error('LOAN_INVALID_AMOUNT');
+      if (!['TRANSFER', 'CASH', 'OTHER'].includes(String(data.method))) throw new Error('LOAN_INVALID_METHOD');
+      if (!Number.isSafeInteger(data.dateMillis)) throw new Error('LOAN_INVALID_DATE');
+      const wallet = await this.entityMap.wallets.findOne({ ...active, id: data.walletServerId }).lean();
+      if (!wallet || wallet.householdId) throw new Error('LOAN_INVALID_WALLET');
+      if (change.entityType === 'personal_loans') {
+        if (typeof data.person !== 'string' || !data.person.trim()) throw new Error('LOAN_INVALID_PERSON');
+        if (data.currencyCode !== wallet.currencyCode) throw new Error('LOAN_CURRENCY_MISMATCH');
+        if (existing && ['amountMinor', 'currencyCode', 'walletServerId'].some(key => existing[key] !== data[key])) throw new Error('LOAN_IMMUTABLE_PRINCIPAL');
+      } else {
+        if (existing && existing.loanServerId !== data.loanServerId) throw new Error('LOAN_IMMUTABLE_PARENT');
+        const loan = await this.entityMap.personal_loans.findOne({ ...active, id: data.loanServerId }).lean();
+        if (!loan) throw new Error('LOAN_MISSING_PARENT');
+        if (loan.currencyCode !== wallet.currencyCode) throw new Error('LOAN_CURRENCY_MISMATCH');
+        const reserved = await this.entityMap.personal_loans.findOneAndUpdate({
+          ...active, id: data.loanServerId,
+          $expr: { $lte: [{ $add: [
+            { $subtract: [{ $sum: { $map: { input: { $objectToArray: { $ifNull: ['$repaymentAmounts', {}] } }, as: 'entry', in: '$$entry.v' } } }, { $ifNull: ['$repaymentAmounts.' + change.entityId, 0] }] }, Number(data.amountMinor),
+          ] }, '$amountMinor'] },
+        }, { $set: { ['repaymentAmounts.' + change.entityId]: Number(data.amountMinor) } });
+        if (!reserved) throw new Error('LOAN_OVERPAYMENT_CONFLICT');
+      }
+    } else if (change.entityType === 'personal_loan_repayments') {
+      if (typeof data.loanServerId === 'string') await this.entityMap.personal_loans.updateOne({ userId, id: data.loanServerId }, { $unset: { ['repaymentAmounts.' + change.entityId]: '' } });
+    } else {
+      await this.entityMap.personal_loan_repayments.updateMany({ ...active, loanServerId: change.entityId }, { $set: { deletedAtMillis: change.deletedAtMillis, updatedAtMillis: change.updatedAtMillis } });
+    }
   }
 
   async push(
@@ -189,6 +237,8 @@ export class SyncService {
           continue;
         }
 
+        await this.validateLoanChange(userId, change, existingDoc);
+
         const now = Date.now();
         const deviceId = change.deviceId ?? request.deviceId;
         const entityPayload = sanitizeDocumentForStorage({ ...change.payload });
@@ -199,6 +249,7 @@ export class SyncService {
         delete entityPayload.deletedAtMillis;
         delete entityPayload.clientUpdatedAtMillis;
         delete entityPayload.deviceId;
+        delete entityPayload.repaymentAmounts;
 
         const payload = sanitizeDocumentForStorage({
           ...entityPayload,

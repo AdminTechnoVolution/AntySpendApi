@@ -16,6 +16,8 @@ export const SYNC_ENTITY_TYPES = [
   'budget_member_quotas',
   'debt_accounts',
   'debt_movements',
+  'personal_loans',
+  'personal_loan_repayments',
 ] as const;
 
 export type SyncEntityType = (typeof SYNC_ENTITY_TYPES)[number];
