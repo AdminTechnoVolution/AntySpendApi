@@ -189,9 +189,17 @@ export class SyncService {
           provisionalHouseholdId,
         );
 
-        const existing = (await model
+        let existing = (await model
           .findOne(provisionalFilter)
           .lean()) as Record<string, unknown> | null;
+
+        // Older clients send deletion tombstones without household metadata.
+        // Recover the owner's document before authorization rather than trying
+        // to insert a private document with the same unique (userId, id).
+        if (!existing && !provisionalHouseholdId && change.deletedAtMillis !== undefined) {
+          existing = (await model.findOne({ userId, id: change.entityId }).lean()) as
+            Record<string, unknown> | null;
+        }
 
         const authz = await this.householdAuthz.authorizeSyncChange(
           userId,

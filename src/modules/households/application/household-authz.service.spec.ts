@@ -35,6 +35,20 @@ describe('HouseholdAuthzService', () => {
     );
   });
 
+  it('uses the private pull scope for pushes and keeps shared changes scoped to their household', () => {
+    const change = {
+      entityType: 'savings_plans' as const,
+      entityId: 'plan-1', updatedAtMillis: 1000, payload: {},
+    };
+    expect(service.buildEntityFilter(OWNER_ID, change, undefined)).toEqual({
+      userId: OWNER_ID, id: 'plan-1',
+      $or: [{ householdId: { $exists: false } }, { householdId: null }],
+    });
+    expect(service.buildEntityFilter(OWNER_ID, change, HOUSEHOLD_ID)).toEqual({
+      householdId: HOUSEHOLD_ID, id: 'plan-1',
+    });
+  });
+
   describe('authorizeSyncChange', () => {
     it('allows private entity changes without membership check', async () => {
       const result = await service.authorizeSyncChange(

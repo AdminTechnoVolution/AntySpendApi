@@ -144,7 +144,7 @@ export class HouseholdAuthzService {
       return { householdId, id: change.entityId };
     }
 
-    return { userId, id: change.entityId, householdId: { $exists: false } };
+    return { ...this.buildPrivatePullFilter(userId), id: change.entityId };
   }
 
   buildPrivatePullFilter(userId: string): Record<string, unknown> {

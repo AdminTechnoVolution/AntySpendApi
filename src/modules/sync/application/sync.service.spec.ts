@@ -144,6 +144,82 @@ describe('SyncService push idempotency', () => {
     expect(lwwService.bumpServerVersion).toHaveBeenCalledWith('user-1');
   });
 
+  it.each([null, undefined])('updates an existing private savings plan with householdId=%s', async (householdId) => {
+    const authz = new HouseholdAuthzService({} as never, {} as never, {} as never);
+    (householdAuthz.buildEntityFilter as jest.Mock).mockImplementation(
+      authz.buildEntityFilter.bind(authz),
+    );
+    const stored = {
+      id: WALLET_ID, userId: 'user-1', householdId,
+      updatedAtMillis: 900, createdAtMillis: 800, deviceId: 'device-a',
+    };
+    // Simulate the null/missing distinction that caused the upsert collision.
+    const matches = (filter: Record<string, unknown>) =>
+      filter.userId === stored.userId && filter.id === stored.id &&
+      Array.isArray(filter.$or);
+    findOne.mockImplementation((filter) => ({
+      lean: jest.fn().mockResolvedValue(matches(filter) ? stored : null),
+    }));
+    findOneAndUpdate.mockImplementation(async (filter) => {
+      if (!matches(filter)) throw new Error('E11000 duplicate key');
+      return stored;
+    });
+    (lwwService.decide as jest.Mock).mockReturnValue({ outcome: 'accept' });
+
+    const result = await service.push('user-1', {
+      changes: [{ entityType: 'savings_plans', entityId: WALLET_ID,
+        updatedAtMillis: 1000, payload: { name: 'Savings', householdId: null } }],
+    });
+
+    expect(result.accepted).toEqual([WALLET_ID]);
+    expect(result.rejected).toEqual([]);
+    expect(lwwService.decide).toHaveBeenCalledWith(expect.anything(), 900, 'device-a');
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { userId: 'user-1', id: WALLET_ID,
+        $or: [{ householdId: { $exists: false } }, { householdId: null }] },
+      expect.objectContaining({ $setOnInsert: { createdAtMillis: 800 } }),
+      expect.anything(),
+    );
+  });
+
+  it.each([true, false])('recovers household scope for legacy savings plan deletes (authorized=%s)', async (allowed) => {
+    const stored = {
+      userId: 'user-1', id: WALLET_ID, householdId: HOUSEHOLD_ID,
+      updatedAtMillis: 900, createdAtMillis: 800,
+    };
+    const authz = new HouseholdAuthzService({} as never, {} as never, {} as never);
+    (householdAuthz.buildEntityFilter as jest.Mock).mockImplementation(authz.buildEntityFilter.bind(authz));
+    (householdAuthz.authorizeSyncChange as jest.Mock).mockResolvedValue(
+      allowed ? { allowed: true, householdId: HOUSEHOLD_ID, isOwner: true }
+        : { allowed: false, reason: 'NOT_HOUSEHOLD_MEMBER' },
+    );
+    findOne.mockReturnValueOnce({ lean: jest.fn().mockResolvedValue(null) })
+      .mockReturnValueOnce({ lean: jest.fn().mockResolvedValue(stored) });
+    findOneAndUpdate.mockResolvedValue(stored);
+    (lwwService.decide as jest.Mock).mockReturnValue({ outcome: 'accept' });
+
+    const change = { entityType: 'savings_plans' as const, entityId: WALLET_ID,
+      updatedAtMillis: 1000, deletedAtMillis: 1000, payload: {} };
+    const result = await service.push('user-1', { changes: [change] });
+
+    expect(findOne).toHaveBeenNthCalledWith(2, { userId: 'user-1', id: WALLET_ID });
+    expect(householdAuthz.authorizeSyncChange).toHaveBeenCalledWith('user-1', change, stored);
+    if (allowed) {
+      expect(result.accepted).toEqual([WALLET_ID]);
+      expect(result.rejected).toEqual([]);
+      expect(findOneAndUpdate).toHaveBeenCalledWith(
+        { householdId: HOUSEHOLD_ID, id: WALLET_ID },
+        expect.objectContaining({ $set: expect.objectContaining({
+          householdId: HOUSEHOLD_ID, deletedAtMillis: 1000,
+        }) }), expect.anything(),
+      );
+      expect(lwwService.bumpServerVersionForUsers).toHaveBeenCalled();
+    } else {
+      expect(result.rejected).toEqual([{ entityId: WALLET_ID, reason: 'NOT_HOUSEHOLD_MEMBER' }]);
+      expect(findOneAndUpdate).not.toHaveBeenCalled();
+    }
+  });
+
   it('strips malicious Mongo operator keys from payload before $set', async () => {
     findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
     (lwwService.decide as jest.Mock).mockReturnValue({ outcome: 'accept' });
