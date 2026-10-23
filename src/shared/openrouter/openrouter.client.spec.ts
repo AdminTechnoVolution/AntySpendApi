@@ -41,6 +41,7 @@ describe('OpenRouterClient receipt extraction', () => {
         max_tokens: number;
         temperature: number;
         plugins?: unknown;
+        provider: { data_collection: string; zdr?: boolean };
       },
       { timeout: number; signal: AbortSignal },
     ];
@@ -48,8 +49,30 @@ describe('OpenRouterClient receipt extraction', () => {
     expect(body.max_tokens).toBe(900);
     expect(body.temperature).toBe(0);
     expect(body.plugins).toBeUndefined();
+    expect(body.provider.data_collection).toBe('deny');
+    expect(body.provider.zdr).toBeUndefined();
     expect(options.timeout).toBe(15000);
     expect(options.signal).toBe(signal);
+  });
+
+  it('does not require zero data retention for text completions', async () => {
+    post.mockReturnValue(
+      of({ data: { choices: [{ message: { content: '{"expenses":[]}' } }] } }),
+    );
+
+    await client.chatCompletionJson(
+      'system',
+      '{}',
+      'expenses',
+      { type: 'object' },
+    );
+
+    const [, body] = post.mock.calls[0] as unknown as [
+      string,
+      { provider: { data_collection: string; zdr?: boolean } },
+    ];
+    expect(body.provider.data_collection).toBe('deny');
+    expect(body.provider.zdr).toBeUndefined();
   });
 
   it('maps provider timeouts to a gateway timeout', async () => {

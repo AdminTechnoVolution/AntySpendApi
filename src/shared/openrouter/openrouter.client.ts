@@ -59,7 +59,6 @@ export class OpenRouterClient {
             provider: {
               require_parameters: true,
               data_collection: 'deny',
-              zdr: true,
             },
             plugins: [{ id: 'response-healing' }],
             messages: [
@@ -172,7 +171,6 @@ export class OpenRouterClient {
             provider: {
               require_parameters: true,
               data_collection: 'deny',
-              zdr: true,
             },
             messages: [
               { role: 'system', content: systemPrompt },
