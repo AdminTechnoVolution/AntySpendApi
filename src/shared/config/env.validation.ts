@@ -12,7 +12,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_MS: Joi.number().default(60000),
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_ACCESS_EXPIRES: Joi.string().default('15m'),
-  JWT_REFRESH_EXPIRES: Joi.string().default('7d'),
+  JWT_REFRESH_EXPIRES: Joi.string().default('180d'),
   GOOGLE_CLIENT_ID: Joi.string().required(),
   APPLE_CLIENT_ID: Joi.string().allow('').default(''),
   OPENROUTER_API_KEY: Joi.string().allow('').default(''),

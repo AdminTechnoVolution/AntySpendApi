@@ -34,8 +34,8 @@ describe('JwtStrategy', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
-  it('accepts a token with no sessionId when the user has never started a tracked session', async () => {
-    lean.mockResolvedValue({ activeSessionId: undefined });
+  it('accepts an access token without a session id for an existing user', async () => {
+    lean.mockResolvedValue({ _id: 'u1' });
     const result = await strategy.validate({
       sub: 'u1',
       email: 'a@b.com',
@@ -44,8 +44,8 @@ describe('JwtStrategy', () => {
     expect(result).toEqual({ userId: 'u1', email: 'a@b.com' });
   });
 
-  it('accepts a token whose sessionId matches the user active session', async () => {
-    lean.mockResolvedValue({ activeSessionId: 'session-1' });
+  it('accepts an access token with a session id for an existing user', async () => {
+    lean.mockResolvedValue({ _id: 'u1' });
     const result = await strategy.validate({
       sub: 'u1',
       email: 'a@b.com',
@@ -55,15 +55,14 @@ describe('JwtStrategy', () => {
     expect(result).toEqual({ userId: 'u1', email: 'a@b.com' });
   });
 
-  it('rejects a token superseded by a newer login elsewhere', async () => {
-    lean.mockResolvedValue({ activeSessionId: 'session-2' });
-    await expect(
-      strategy.validate({
-        sub: 'u1',
-        email: 'a@b.com',
-        type: 'access',
-        sessionId: 'session-1',
-      }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+  it('keeps an access token valid after a login elsewhere', async () => {
+    lean.mockResolvedValue({ _id: 'u1' });
+    const result = await strategy.validate({
+      sub: 'u1',
+      email: 'a@b.com',
+      type: 'access',
+      sessionId: 'session-1',
+    });
+    expect(result).toEqual({ userId: 'u1', email: 'a@b.com' });
   });
 });

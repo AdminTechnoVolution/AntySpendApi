@@ -60,7 +60,7 @@ curl -s http://localhost:3000/docs-json -o openapi.json
 | `MONGODB_URI`                              | Yes                 | MongoDB connection string                                               |
 | `JWT_SECRET`                               | Yes                 | Secret for signing JWT (min 16 chars)                                   |
 | `JWT_ACCESS_EXPIRES`                       | No                  | Access token TTL (default `15m`)                                        |
-| `JWT_REFRESH_EXPIRES`                      | No                  | Refresh token TTL (default `7d`)                                        |
+| `JWT_REFRESH_EXPIRES`                      | No                  | Refresh token inactivity window (default `180d`, renewed on use)         |
 | `GOOGLE_CLIENT_ID`                         | Yes                 | Google OAuth Web Client ID                                              |
 | `OPENROUTER_API_KEY`                       | For AI              | OpenRouter API key                                                      |
 | `OPENROUTER_MODEL`                         | No                  | Model id (default `google/gemini-2.5-flash-lite`)                       |

@@ -4,7 +4,7 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_SECRET,
     accessExpires: process.env.JWT_ACCESS_EXPIRES ?? '15m',
-    refreshExpires: process.env.JWT_REFRESH_EXPIRES ?? '7d',
+    refreshExpires: process.env.JWT_REFRESH_EXPIRES ?? '180d',
   },
   google: {
     // Comma-separated — Android's Web Client ID plus one iOS Client ID per bundle id/build.

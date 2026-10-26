@@ -39,7 +39,7 @@ describe('AuthService profile', () => {
   const config = {
     get: jest.fn((key: string) => {
       if (key === 'jwt.accessExpires') return '15m';
-      if (key === 'jwt.refreshExpires') return '7d';
+      if (key === 'jwt.refreshExpires') return '180d';
       return undefined;
     }),
   };
@@ -186,19 +186,13 @@ describe('AuthService profile', () => {
       );
     });
 
-    it('starts a new session, revoking other devices on login', async () => {
+    it('creates an independent session without revoking other devices on login', async () => {
       findByUserId.mockResolvedValue(null);
 
       await service.loginWithGoogle('id-token');
 
-      expect(updateOne).toHaveBeenCalledWith(
-        { _id: userId },
-        { $set: { activeSessionId: expect.any(String) } },
-      );
-      expect(refreshTokenModel.updateMany).toHaveBeenCalledWith(
-        { userId, revoked: false },
-        { $set: { revoked: true } },
-      );
+      expect(updateOne).not.toHaveBeenCalled();
+      expect(refreshTokenModel.updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -404,7 +398,7 @@ describe('AuthService profile', () => {
       );
     });
 
-    it('rejects a refresh token whose session was superseded by a newer login elsewhere', async () => {
+    it('continues a refresh token after a login elsewhere', async () => {
       jwtService.verifyAsync.mockResolvedValue({
         sub: userId,
         type: 'refresh',
@@ -419,13 +413,13 @@ describe('AuthService profile', () => {
         email: googleProfile.email,
         name: 'Google Name',
         picture: googleProfile.picture,
-        activeSessionId: 'new-session',
       });
+      refreshTokenModel.findOneAndUpdate.mockResolvedValue({ _id: 'doc' });
 
-      await expect(service.refresh('refresh-jwt')).rejects.toThrow(
-        'Session was signed out from another device',
-      );
-      expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
+      const result = await service.refresh('refresh-jwt');
+
+      expect(result.accessToken).toBe('token');
+      expect(refreshTokenModel.findOneAndUpdate).toHaveBeenCalled();
     });
 
     it('reuses the winning rotation result when it loses the concurrent-refresh race', async () => {
@@ -458,7 +452,7 @@ describe('AuthService profile', () => {
       expect(refreshTokenModel.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
-    it('rejects cached rotation tokens after a newer login supersedes the session', async () => {
+    it('reuses a cached rotation after a login elsewhere', async () => {
       jwtService.verifyAsync.mockResolvedValue({ sub: userId, type: 'refresh', sessionId: 'old' });
       refreshTokenModel.findOne
         .mockResolvedValueOnce({ revoked: true })
@@ -466,9 +460,10 @@ describe('AuthService profile', () => {
           accessToken: 'old-access', refreshToken: 'old-refresh', issuedAtMillis: Date.now(),
         } });
       findById.mockReturnValue({ lean: jest.fn().mockResolvedValue({
-        _id: { toString: () => userId }, activeSessionId: 'new',
+        _id: { toString: () => userId },
       }) });
-      await expect(service.refresh('refresh-jwt')).rejects.toThrow('Session was signed out from another device');
+      const result = await service.refresh('refresh-jwt');
+      expect(result.accessToken).toBe('old-access');
     });
 
     it('rejects when revoked with a stale or missing rotation result', async () => {

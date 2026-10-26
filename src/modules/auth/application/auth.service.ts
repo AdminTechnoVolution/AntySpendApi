@@ -75,7 +75,7 @@ export class AuthService {
     await this.settingsService.ensureForUser(user._id.toString(), profile);
 
     const userId = user._id.toString();
-    const sessionId = await this.startNewSession(userId);
+    const sessionId = this.startNewSession();
     return this.issueTokens(
       userId,
       user.email,
@@ -164,7 +164,7 @@ export class AuthService {
       picture: user.picture,
     });
     const userId = user._id.toString();
-    const sessionId = await this.startNewSession(userId);
+    const sessionId = this.startNewSession();
     return this.issueTokens(
       userId,
       user.email,
@@ -178,22 +178,9 @@ export class AuthService {
     );
   }
 
-  /**
-   * Starts a fresh session for this user: a new sessionId that invalidates every previously
-   * issued token on its next use (see JwtStrategy.validate / refresh below), plus an explicit
-   * revoke of outstanding refresh tokens so other devices can't silently rotate past it either.
-   */
-  private async startNewSession(userId: string): Promise<string> {
-    const sessionId = generateId();
-    await this.userModel.updateOne(
-      { _id: userId },
-      { $set: { activeSessionId: sessionId } },
-    );
-    await this.refreshTokenModel.updateMany(
-      { userId, revoked: false },
-      { $set: { revoked: true } },
-    );
-    return sessionId;
+  /** Each login gets an independent session that expires or is revoked on its own. */
+  private startNewSession(): string {
+    return generateId();
   }
 
   async refresh(refreshToken: string) {
@@ -226,14 +213,6 @@ export class AuthService {
       if (!user) {
         throw new UnauthorizedException('User not found');
       }
-      // A newer login elsewhere already overwrote activeSessionId — this refresh token belongs
-      // to a superseded session and must not be allowed to rotate into a fresh one.
-      if (user.activeSessionId && user.activeSessionId !== payload.sessionId) {
-        throw new UnauthorizedException(
-          'Session was signed out from another device',
-        );
-      }
-
       const tokens = await this.issueTokens(
         user._id.toString(),
         user.email,
@@ -281,9 +260,6 @@ export class AuthService {
       const user = await this.userModel.findById(payload.sub).lean();
       if (!user) {
         throw new UnauthorizedException('User not found');
-      }
-      if (user.activeSessionId && user.activeSessionId !== payload.sessionId) {
-        throw new UnauthorizedException('Session was signed out from another device');
       }
       return {
         accessToken: cached.accessToken,
@@ -383,7 +359,7 @@ export class AuthService {
     const accessExpires =
       this.config.get<string>('jwt.accessExpires') ?? '15m';
     const refreshExpires =
-      this.config.get<string>('jwt.refreshExpires') ?? '7d';
+      this.config.get<string>('jwt.refreshExpires') ?? '180d';
 
     const accessToken = await this.jwtService.signAsync(
       { ...accessPayload },
