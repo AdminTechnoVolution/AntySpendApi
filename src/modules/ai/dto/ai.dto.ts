@@ -71,12 +71,18 @@ export class ReceiptExtractionRequestDto {
   @IsObject()
   preliminaryResult?: Record<string, unknown>;
 
-  @ApiProperty({ required: false, description: 'OCR lines with image coordinates' })
+  @ApiProperty({
+    required: false,
+    description: 'OCR lines with image coordinates',
+  })
   @IsOptional()
   @IsArray()
   ocrLines?: Array<Record<string, unknown>>;
 
-  @ApiProperty({ required: false, description: 'Client scan identifier for diagnostics' })
+  @ApiProperty({
+    required: false,
+    description: 'Client scan identifier for diagnostics',
+  })
   @IsOptional()
   @IsString()
   scanAttemptId?: string;
@@ -339,4 +345,17 @@ export class MonthlyReportRequestDto {
   @ValidateNested({ each: true })
   @Type(() => MonthlyReportBudgetDto)
   budgets?: MonthlyReportBudgetDto[];
+}
+
+/** Versioned conversation: the device executes validated queries and actions. */
+export class MascotTurnV2RequestDto extends MascotTurnRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  conversationId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  turnId!: string;
 }

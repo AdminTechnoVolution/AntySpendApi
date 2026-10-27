@@ -54,7 +54,7 @@ export class OpenRouterClient {
           {
             model,
             temperature: 0,
-            max_tokens: 1800,
+            max_tokens: schemaName === 'anty_financial_turn_v2' ? 6000 : 1800,
             stream: false,
             provider: {
               require_parameters: true,
