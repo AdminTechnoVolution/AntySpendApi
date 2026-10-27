@@ -18,6 +18,9 @@ import { AiService } from './application/ai.service';
 import { AiController } from './presentation/ai.controller';
 import { AiUsageQuotaGuard } from '../../shared/auth/ai-usage-quota.guard';
 import { AiUsageQuotaInterceptor } from '../../shared/auth/ai-usage-quota.interceptor';
+import { MascotController } from './presentation/mascot.controller';
+import { MascotChatService } from './application/mascot-chat.service';
+import { MascotPremiumGuard } from './application/mascot-premium.guard';
 
 @Module({
   imports: [
@@ -31,7 +34,7 @@ import { AiUsageQuotaInterceptor } from '../../shared/auth/ai-usage-quota.interc
       { name: RecurringExpense.name, schema: RecurringExpenseSchema },
     ]),
   ],
-  controllers: [AiController],
-  providers: [AiService, AiUsageQuotaGuard, AiUsageQuotaInterceptor],
+  controllers: [AiController, MascotController],
+  providers: [AiService, AiUsageQuotaGuard, AiUsageQuotaInterceptor, MascotChatService, MascotPremiumGuard],
 })
 export class AiModule {}

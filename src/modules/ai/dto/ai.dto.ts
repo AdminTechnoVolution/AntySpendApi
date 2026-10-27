@@ -9,6 +9,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -247,6 +248,44 @@ export class MonthlyReportMonthSummaryDto {
   @ValidateNested({ each: true })
   @Type(() => MonthlyReportCategoryTotalDto)
   topCategories!: MonthlyReportCategoryTotalDto[];
+}
+
+export class MascotConversationMessageDto {
+  @ApiProperty({ enum: ['user', 'assistant'] })
+  @IsString()
+  @IsIn(['user', 'assistant'])
+  role!: 'user' | 'assistant';
+
+  @ApiProperty({ maxLength: 2000 })
+  @IsString()
+  @MaxLength(2000)
+  content!: string;
+}
+
+export class MascotTurnRequestDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  message!: string;
+
+  @ApiProperty({ type: [MascotConversationMessageDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MascotConversationMessageDto)
+  history?: MascotConversationMessageDto[];
+
+  @ApiProperty({ type: Object, required: false })
+  @IsOptional()
+  @IsObject()
+  financialContext?: Record<string, unknown>;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  userLanguage?: string;
 }
 
 export class MonthlyReportRequestDto {
