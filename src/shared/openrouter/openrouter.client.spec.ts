@@ -94,3 +94,20 @@ describe('OpenRouterClient receipt extraction', () => {
     ).rejects.toBeInstanceOf(GatewayTimeoutException);
   });
 });
+
+
+describe('OpenRouter model fallback routing', () => {
+  it('keeps a structured-output fallback when an environment names a retired model', async () => {
+    const post = jest.fn().mockReturnValue(of({ data: { model: 'google/gemini-2.5-flash-lite', choices: [{ message: { content: '{"reply":"ok"}' } }] } }));
+    const config = { get: (key: string) => ({ 'openRouter.apiKey': 'test-key', 'openRouter.model': 'qwen/qwen3-vl-32b-instruct' })[key] };
+    const client = new OpenRouterClient({ post } as never, config as never);
+    await expect(client.chatCompletionJson('system', '{}', 'anty_financial_turn_v2', { type: 'object' })).resolves.toEqual({ reply: 'ok' });
+    expect(post.mock.calls[0][1]).toMatchObject({ models: ['qwen/qwen3-vl-32b-instruct', 'qwen/qwen3.7-plus'], max_tokens: 6000, provider: { require_parameters: true, data_collection: 'deny' } });
+  });
+  it('does not repeat the configured model when it is already the fallback', async () => {
+    const post = jest.fn().mockReturnValue(of({ data: { choices: [{ message: { content: '{}' } }] } }));
+    const client = new OpenRouterClient({ post } as never, { get: (key: string) => key === 'openRouter.apiKey' ? 'test-key' : key === 'openRouter.model' ? 'qwen/qwen3.7-plus' : undefined } as never);
+    await client.chatCompletionJson('system', '{}', 'test', { type: 'object' });
+    expect(post.mock.calls[0][1].models).toEqual(['qwen/qwen3.7-plus']);
+  });
+});

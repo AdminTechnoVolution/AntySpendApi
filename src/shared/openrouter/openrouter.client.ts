@@ -53,6 +53,7 @@ export class OpenRouterClient {
           this.baseUrl,
           {
             model,
+            models: [...new Set([model, 'qwen/qwen3.7-plus'])],
             temperature: 0,
             max_tokens: schemaName === 'anty_financial_turn_v2' ? 6000 : 1800,
             stream: false,
@@ -165,6 +166,7 @@ export class OpenRouterClient {
           this.baseUrl,
           {
             model,
+            models: [...new Set([model, 'qwen/qwen3.7-plus'])],
             temperature: 0,
             max_tokens: maxTokens,
             stream: false,
