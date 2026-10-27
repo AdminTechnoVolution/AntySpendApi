@@ -41,4 +41,4 @@ The hardware acceptance pass must still check listening, cancellation, rotation,
 
 ## Model availability
 
-The configured model may be retired independently of an app release. Text requests include an ordered OpenRouter `models` list with `qwen/qwen3.7-plus` as a structured-output fallback; image requests use the same image-capable fallback. Provider parameter enforcement and data-collection restrictions are preserved. See https://openrouter.ai/docs/guides/routing/model-fallbacks.
+The configured model may be retired independently of an app release. Text requests include an ordered OpenRouter `models` list with `google/gemini-3.5-flash-lite` as a structured-output fallback; image requests use the same image-capable fallback. Provider parameter enforcement and data-collection restrictions are preserved. See https://openrouter.ai/docs/guides/routing/model-fallbacks.

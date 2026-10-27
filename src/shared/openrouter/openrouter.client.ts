@@ -53,7 +53,7 @@ export class OpenRouterClient {
           this.baseUrl,
           {
             model,
-            models: [...new Set([model, 'qwen/qwen3.7-plus'])],
+            models: [...new Set([model, 'google/gemini-3.5-flash-lite'])],
             temperature: 0,
             max_tokens: schemaName === 'anty_financial_turn_v2' ? 6000 : 1800,
             stream: false,
@@ -61,7 +61,9 @@ export class OpenRouterClient {
               require_parameters: true,
               data_collection: 'deny',
             },
-            plugins: [{ id: 'response-healing' }],
+            ...(schemaName === 'anty_financial_turn_v2'
+              ? {}
+              : { plugins: [{ id: 'response-healing' }] }),
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userContent },
@@ -166,7 +168,7 @@ export class OpenRouterClient {
           this.baseUrl,
           {
             model,
-            models: [...new Set([model, 'qwen/qwen3.7-plus'])],
+            models: [...new Set([model, 'google/gemini-3.5-flash-lite'])],
             temperature: 0,
             max_tokens: maxTokens,
             stream: false,

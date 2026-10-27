@@ -139,7 +139,7 @@ const queryProperties = {
   categoryId: string,
   walletId: string,
   parentId: string,
-  offset: { type: 'integer', minimum: 0, maximum: 1000000 },
+  offset: { type: 'integer' },
 };
 const actionProperties = {
   operation: { type: 'string', enum: OPERATIONS },
@@ -160,7 +160,6 @@ export const MASCOT_V2_SCHEMA = {
     },
     queries: {
       type: 'array',
-      maxItems: 8,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -170,7 +169,6 @@ export const MASCOT_V2_SCHEMA = {
     },
     actions: {
       type: 'array',
-      maxItems: 20,
       items: {
         type: 'object',
         additionalProperties: false,
@@ -188,15 +186,13 @@ Entidades: TRANSACTION, WALLET, CATEGORY, BUDGET, DEBT (debo), DEBT_MOVEMENT (hi
 Consultas: scope PRIVATE/HOUSEHOLD/BOTH (por defecto BOTH separados), period ALL/TODAY/THIS_WEEK/THIS_MONTH/LAST_MONTH/CUSTOM. Fechas ISO yyyy-MM-dd, fin exclusivo; campos de filtro vacíos si no aplican, offset 0. parentId filtra movimientos de una deuda, préstamo, ahorro o inversión. Datos MEMBER_SHARED son de otros miembros, solo lectura y nunca sumados al dinero personal. Para comida resuelve categoryId consultando CATEGORY primero si no tienes su ID real. search filtra nombres/conceptos, NO sustituye un filtro de categoría. Para disponible consulta TRANSACTION THIS_MONTH: es ingresos menos gastos, no saldo bancario. Esta semana empieza lunes. Los resultados incluyen totalCount y nextOffset; usa paginación si necesitas más detalles. No necesitas todas las páginas para totales ya calculados sobre todos los registros. primaryTotals usa conversiones guardadas y unconvertedCount indica movimientos sin conversión, que no debes tratar como cero.
 Si financialContext.queryResults contiene resultados suficientes responde ANSWER con esas cifras, período, moneda y ámbito separados; si no, solicita otras consultas. No escribas cuando solo se pregunta.
 Acciones: CREATE/UPDATE/DELETE/PAY/VOID. UPDATE/DELETE/PAY requieren targetId obtenido de consulta, nunca adivinado. PRIVATE por defecto; HOUSEHOLD solo si el usuario lo pide explícitamente, no por consultar datos compartidos previamente.
-Para CREATE TRANSACTION extrae TODOS los gastos/ingresos del audio en acciones separadas; fields: type EXPENSE/INCOME, amount decimal canónico sin símbolo ni miles, title, merchant, currencyCode, categoryId o categoryName, walletId o walletName, date yyyy-MM-dd, note, paymentMethod. transcript contiene SOLO la frase del movimiento correspondiente para el extractor compartido. Solo amount es obligatorio; usa predeterminados si no hay moneda/wallet/categoría. No preguntes por detalles opcionales; un pedido completo se ejecuta directamente. Si falta monto pregunta y conserva los otros campos en historial. Nunca reutilices acciones ya guardadas en executionResults.
+Para CREATE TRANSACTION extrae TODOS los gastos/ingresos del audio en acciones separadas; fields: type EXPENSE/INCOME, amount decimal canónico sin símbolo ni miles, title, merchant, currencyCode, categoryId o categoryName (solo si el usuario especificó categoría; si es inferida omite ambos y usa el extractor), walletId o walletName (solo si se especificaron), date yyyy-MM-dd, note, paymentMethod. transcript contiene SOLO la frase del movimiento correspondiente para el extractor compartido. Solo amount es obligatorio; usa predeterminados si no hay moneda/wallet/categoría. No preguntes por detalles opcionales; un pedido completo se ejecuta directamente. Si falta monto pregunta y conserva los otros campos en historial. Nunca reutilices acciones ya guardadas en executionResults.
 Otras entidades fields: name/title, amount (monto o límite/meta), currencyCode, walletId, categoryId, type, date, note. BUDGET: periodType MONTHLY/WEEKLY/CUSTOM, startDate, endDate; DEBT: annualInterestRateBps, minimumPayment; SAVINGS: plannedContribution, frequency, targetDate; INVESTMENT: institution,type; movimientos: parentId,type CONTRIBUTION/WITHDRAWAL,amount,date,walletId; RECURRING: frequency,dueDayOfMonth,nextDueDate; LOAN: person,amount,walletId,date,method.
-UPDATE solo incluye campos expresamente cambiados; no conviertas operaciones de edición en creación. DELETE elimina el registro, VOID anula un movimiento de deuda con parentId. PAY DEBT o LOAN registra abono con amount, walletId,date,method. Para pagos de deuda el dispositivo aplica las reglas del módulo.
+UPDATE solo incluye campos expresamente cambiados; no conviertas operaciones de edición en creación. DELETE elimina el registro, VOID DEBT anula un movimiento de deuda: targetId es la deuda y fields contiene movementId y date. PAY DEBT usa solo amount, currencyCode y date, igual que el control de deuda de la app. PAY LOAN usa amount, walletId, date y method CASH/TRANSFER/OTHER. PAY RECURRING usa fields vacíos y los datos configurados del recurrente. Para cambiar esos datos solicita UPDATE antes del pago.
 El dispositivo pedirá confirmación antes de toda escritura salvo CREATE TRANSACTION. Si hay pendingConfirmation y el usuario acepta exactamente lo propuesto, devuelve CONFIRM sin acciones nuevas; si rechaza CANCEL. Si cambia el pedido, devuelve las nuevas acciones y nunca CONFIRM. No afirmes que se guardó antes de executionResults. Si hay fallos explica cuáles sin volver a proponer los exitosos.
 Usa missingFields únicamente para datos indispensables; conserva campos de aclaraciones anteriores. Si falta una referencia consulta primero. Devuelve JSON del esquema, con listas vacías cuando no se usan.`;
 
-function validateV2(
-  value: unknown,
-): asserts value is {
+function validateV2(value: unknown): asserts value is {
   reply: string;
   decision: string;
   queries: unknown[];
@@ -270,6 +266,10 @@ function validateV2(
       !a.missingFields.every((f) => typeof f === 'string')
     )
       return fail();
+    const amount = a.fields.find(
+      (f: { name: string }) => f.name === 'amount',
+    ) as { value: string } | undefined;
+    if (amount && !/^[0-9]+(?:\.[0-9]+)?$/.test(amount.value)) return fail();
   }
   if (
     (value.decision === 'QUERY' &&
