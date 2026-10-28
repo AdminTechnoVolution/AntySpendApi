@@ -15,15 +15,26 @@ require('dotenv').config({ path: path.join(__dirname, '../.env'), quiet: true })
   const mongo = await MongoMemoryServer.create();
   const uri = mongo.getUri('anty_mascot_e2e');
   const db = await mongoose.createConnection(uri).asPromise();
-  const id = new mongoose.Types.ObjectId();
+  const restoreIndex = process.argv.indexOf('--restore-fixture');
+  const recovered = restoreIndex < 0 ? null : mongoose.mongo.BSON.EJSON.parse(fs.readFileSync(process.argv[restoreIndex + 1], 'utf8'));
+  if (recovered && recovered.user?.email !== 'mascot-e2e@example.invalid') throw new Error('Only synthetic fixtures may be restored');
+  const id = recovered?.user?._id ?? new mongoose.Types.ObjectId();
   const email = 'mascot-e2e@example.invalid';
   const now = Date.now();
-  await db.collection('users').insertOne({ _id: id, email, name: 'Anty E2E', createdAtMillis: now, updatedAtMillis: now });
+  await db.collection('users').insertOne(recovered?.user ?? { _id: id, email, name: 'Anty E2E', createdAtMillis: now, updatedAtMillis: now });
+  const allowedCollections = new Set(['user_settings', 'wallets', 'categories', 'merchants', 'transactions', 'budgets', 'recurring_expenses', 'savings_plans', 'savings_movements', 'investments', 'investment_movements', 'debt_accounts', 'debt_movements', 'personal_loans', 'personal_loan_repayments', 'sync_metadata']);
+  for (const entity of recovered?.entities ?? []) {
+    if (!allowedCollections.has(entity.collection) || entity.documents.some(doc => doc.userId !== id.toHexString())) throw new Error('Invalid synthetic backup');
+    if (entity.documents.length) await db.collection(entity.collection).insertMany(entity.documents);
+  }
   const secret = crypto.randomBytes(48).toString('hex');
-  const token = new JwtService({ secret }).sign({ sub: id.toHexString(), email, type: 'access' }, { expiresIn: '4h' });
+  const jwt = new JwtService({ secret });
+  const token = jwt.sign({ sub: id.toHexString(), email, type: 'access' }, { expiresIn: process.env.MASCOT_E2E_ACCESS_EXPIRES ?? '15m' });
+  const refreshToken = jwt.sign({ sub: id.toHexString(), email, type: 'refresh', jti: crypto.randomUUID() }, { expiresIn: '180d' });
+  await db.collection('refresh_tokens').insertOne({ userId: id.toHexString(), tokenHash: crypto.createHash('sha256').update(refreshToken).digest('hex'), expiresAt: new Date(now + 180 * 86400000), revoked: false });
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'anty-mascot-e2e-'));
   fs.chmodSync(directory, 0o700);
-  fs.writeFileSync(path.join(directory, 'fixture.json'), JSON.stringify({ userId: id.toHexString(), email, accessToken: token }), { mode: 0o600 });
+  fs.writeFileSync(path.join(directory, 'fixture.json'), JSON.stringify({ userId: id.toHexString(), email, accessToken: token, refreshToken }), { mode: 0o600 });
   await db.close();
   const child = spawn(process.execPath, ['dist/src/main.js'], { cwd: path.join(__dirname, '..'), stdio: 'inherit', env: {
     ...process.env, NODE_ENV: 'development', PORT: '3100', MONGODB_URI: uri, JWT_SECRET: secret,
