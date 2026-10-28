@@ -156,6 +156,8 @@ describe('Mascot financial conversation v2', () => {
     response('QUERY', { queries: [{ ...query, offset: -1 }] }),
     response('QUERY', { queries: [{ ...query, offset: 1.5 }] }),
     response('ACTIONS'),
+    response('ACTIONS', { actions: [{ ...action, targetLabel: null }] }),
+    response('ACTIONS', { actions: [{ ...action, referenceLabels: {} }] }),
     response('ACTIONS', {
       actions: [{ ...action, fields: [{ name: 'amount', value: '}] } ,' }] }],
     }),
