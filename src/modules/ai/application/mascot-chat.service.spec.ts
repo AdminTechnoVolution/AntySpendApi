@@ -236,6 +236,8 @@ describe('Mascot financial conversation v2', () => {
     });
     const [prompt, , , schema] = model.chatCompletionJson.mock.calls[0];
     expect(prompt).toContain('FASE FINAL');
+    expect(prompt).toContain('nunca una promesa');
+    expect(prompt).not.toContain('Para CREATE TRANSACTION');
     expect(schema.properties.decision.enum).toEqual(['ANSWER']);
     expect(schema.properties.queries.maxItems).toBe(0);
     expect(schema.properties.actions.maxItems).toBe(0);
