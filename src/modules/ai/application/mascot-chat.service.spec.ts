@@ -109,17 +109,27 @@ describe('Mascot financial conversation v2', () => {
   });
 
   it('uses the device calendar and fresh results instead of historical monthly answers', async () => {
-    model.chatCompletionJson.mockResolvedValue(response('QUERY', { queries: [query] }));
+    model.chatCompletionJson.mockResolvedValue(
+      response('QUERY', { queries: [query] }),
+    );
     await service.processTurnV2({
       ...dto,
       message: 'cuánto me he gastado en el mes actual',
-      history: [{ role: 'assistant', content: 'El mes pasado te gastaste 90 USD.' }],
-      financialContext: { currentDate: '2026-10-28', currentMonth: '2026-10', zoneId: 'America/Bogota' },
+      history: [
+        { role: 'assistant', content: 'El mes pasado te gastaste 90 USD.' },
+      ],
+      financialContext: {
+        currentDate: '2026-10-28',
+        currentMonth: '2026-10',
+        zoneId: 'America/Bogota',
+      },
     });
     const [prompt, content] = model.chatCompletionJson.mock.calls[0];
     expect(prompt).toContain('financialContext.currentDate');
     expect(prompt).toContain('LAST_MONTH es únicamente el mes pasado');
-    expect(prompt).toContain('Las cifras del historial no son resultados vigentes');
+    expect(prompt).toContain(
+      'Las cifras del historial no son resultados vigentes',
+    );
     expect(JSON.parse(content).financialContext.currentMonth).toBe('2026-10');
   });
 
@@ -204,6 +214,155 @@ describe('Mascot financial conversation v2', () => {
     await expect(service.processTurnV2(dto)).rejects.toThrow(
       'Invalid financial assistant response',
     );
+  });
+
+  it('forces a grounded final answer after completed queries instead of requesting more filters', async () => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('ANSWER', { reply: 'Esta semana gastaste 12 USD.' }),
+    );
+    await service.processTurnV2({
+      ...dto,
+      message: 'cuales son mis gastos de esta semana?',
+      financialContext: {
+        responseMode: 'SUMMARIZE_RESULTS',
+        queryResults: [
+          {
+            status: 'COMPLETED',
+            query: { ...query, period: 'THIS_WEEK' },
+            results: [],
+          },
+        ],
+      },
+    });
+    const [prompt, , , schema] = model.chatCompletionJson.mock.calls[0];
+    expect(prompt).toContain('FASE FINAL');
+    expect(schema.properties.decision.enum).toEqual(['ANSWER']);
+    expect(schema.properties.queries.maxItems).toBe(0);
+    expect(schema.properties.actions.maxItems).toBe(0);
+  });
+
+  it.each([
+    'MERCHANT',
+    'CURRENCY',
+    'EXCHANGE_RATE',
+    'CATEGORY_RULE',
+    'EXPENSE_SPLIT',
+    'EXPENSE_SPLIT_LINE',
+    'SETTLEMENT',
+    'BUDGET_QUOTA',
+    'LOCAL_SPLIT',
+    'TAG',
+    'TAG_LINK',
+    'HOUSEHOLD',
+    'HOUSEHOLD_MEMBER',
+    'SETTINGS',
+  ])('maps read-only entity %s and rejects its writes', async (entity) => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('QUERY', { queries: [{ ...query, entity }] }),
+    );
+    expect(
+      (
+        await service.processTurnV2({
+          ...dto,
+          financialContext: { dataCatalog: { entities: [entity] } },
+        })
+      ).queries[0],
+    ).toMatchObject({
+      entity,
+    });
+    model.chatCompletionJson.mockResolvedValue(
+      response('ACTIONS', { actions: [{ ...action, entity }] }),
+    );
+    await expect(
+      service.processTurnV2({
+        ...dto,
+        financialContext: { dataCatalog: { entities: [entity] } },
+      }),
+    ).rejects.toThrow('Invalid financial assistant response');
+  });
+
+  it('rejects a query when final synthesis was requested', async () => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('QUERY', { queries: [query] }),
+    );
+    await expect(
+      service.processTurnV2({
+        ...dto,
+        financialContext: { responseMode: 'SUMMARIZE_RESULTS' },
+      }),
+    ).rejects.toThrow('Assistant did not finalize');
+  });
+
+  it('does not offer unsupported tools to older Android installations', async () => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('QUERY', { queries: [query] }),
+    );
+    await service.processTurnV2(dto);
+    const schema = model.chatCompletionJson.mock.calls[0][3];
+    expect(schema.properties.queries.items.properties.groupBy).toBeUndefined();
+    expect(
+      schema.properties.queries.items.properties.entity.enum,
+    ).not.toContain('TAG');
+  });
+
+  it('repairs an equivalent weekly tool loop for older apps inside the API', async () => {
+    const weekly = {
+      ...query,
+      period: 'THIS_WEEK',
+      startDate: '2026-10-26',
+      endDate: '2026-10-30',
+    };
+    model.chatCompletionJson
+      .mockResolvedValueOnce(
+        response('QUERY', { queries: [{ ...weekly, endDate: '2026-10-29' }] }),
+      )
+      .mockResolvedValueOnce(
+        response('ANSWER', { reply: 'Esta semana gastaste 12.34 USD.' }),
+      );
+    const answer = await service.processTurnV2({
+      ...dto,
+      message: 'cuales son mis gastos de esta semana?',
+      financialContext: {
+        queryResults: [
+          {
+            query: { ...weekly, offset: '0' },
+            results: [{ scope: 'PRIVATE', totalCount: '2' }],
+          },
+        ],
+      },
+    });
+    expect(answer.decision).toBe('ANSWER');
+    expect(model.chatCompletionJson).toHaveBeenCalledTimes(2);
+    expect(
+      model.chatCompletionJson.mock.calls[1][3].properties.decision.enum,
+    ).toEqual(['ANSWER']);
+  });
+
+  it('keeps genuinely new category filters instead of finalizing a different query', async () => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('QUERY', { queries: [{ ...query, categoryId: 'food' }] }),
+    );
+    const answer = await service.processTurnV2({
+      ...dto,
+      financialContext: { queryResults: [{ query, results: [] }] },
+    });
+    expect(answer.decision).toBe('QUERY');
+    expect(model.chatCompletionJson).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns only new tools in a mixed repeated-and-new model plan', async () => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('QUERY', {
+        queries: [query, { ...query, entity: 'WALLET', period: 'ALL' }],
+      }),
+    );
+    const answer = await service.processTurnV2({
+      ...dto,
+      financialContext: { queryResults: [{ query, results: [] }] },
+    });
+    expect(answer.queries).toHaveLength(1);
+    expect(answer.queries[0]).toMatchObject({ entity: 'WALLET' });
+    expect(model.chatCompletionJson).toHaveBeenCalledTimes(1);
   });
 
   it('rejects oversized financial context before making a model call', async () => {
