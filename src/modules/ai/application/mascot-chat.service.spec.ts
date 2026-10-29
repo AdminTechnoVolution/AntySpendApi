@@ -108,6 +108,21 @@ describe('Mascot financial conversation v2', () => {
     expect((await service.processTurnV2(dto)).actions).toHaveLength(2);
   });
 
+  it('uses the device calendar and fresh results instead of historical monthly answers', async () => {
+    model.chatCompletionJson.mockResolvedValue(response('QUERY', { queries: [query] }));
+    await service.processTurnV2({
+      ...dto,
+      message: 'cuánto me he gastado en el mes actual',
+      history: [{ role: 'assistant', content: 'El mes pasado te gastaste 90 USD.' }],
+      financialContext: { currentDate: '2026-10-28', currentMonth: '2026-10', zoneId: 'America/Bogota' },
+    });
+    const [prompt, content] = model.chatCompletionJson.mock.calls[0];
+    expect(prompt).toContain('financialContext.currentDate');
+    expect(prompt).toContain('LAST_MONTH es únicamente el mes pasado');
+    expect(prompt).toContain('Las cifras del historial no son resultados vigentes');
+    expect(JSON.parse(content).financialContext.currentMonth).toBe('2026-10');
+  });
+
   it('preserves complete aggregate results without the legacy 80 transaction truncation', async () => {
     const results = {
       queryResults: [
@@ -152,6 +167,7 @@ describe('Mascot financial conversation v2', () => {
     response('ANSWER', { reply: '' }),
     response('DELETE_EVERYTHING'),
     response('QUERY'),
+    response('QUERY', { reply: '', queries: [query] }),
     response('QUERY', { queries: [{ ...query, scope: 'SOMEONE_ELSE' }] }),
     response('QUERY', { queries: [{ ...query, offset: -1 }] }),
     response('QUERY', { queries: [{ ...query, offset: 1.5 }] }),
