@@ -118,7 +118,7 @@ describe('HouseholdAuthzService', () => {
       });
     });
 
-    it('rejects shared sync when the household owner family plan is inactive', async () => {
+    it('retires member access to shared sync when the household owner family plan is inactive', async () => {
       findOne.mockReturnValue({
         lean: jest.fn().mockResolvedValue({
           userId: MEMBER_ID,
@@ -142,9 +142,41 @@ describe('HouseholdAuthzService', () => {
 
       expect(result).toEqual({
         allowed: false,
-        reason: 'FAMILY_PLAN_INACTIVE',
+        reason: 'NOT_HOUSEHOLD_MEMBER',
       });
     });
+
+    it.each(['wallets', 'transactions'] as const)(
+      'lets the owner keep syncing shared %s on a personal plan',
+      async (entityType) => {
+        findOne.mockReturnValue({
+          lean: jest.fn().mockResolvedValue({
+            userId: OWNER_ID,
+            householdId: HOUSEHOLD_ID,
+            role: MEMBER_ROLE.OWNER,
+            status: MEMBER_STATUS.ACTIVE,
+          }),
+        });
+        hasActiveFamilyPlan.mockResolvedValue(false);
+
+        const result = await service.authorizeSyncChange(
+          OWNER_ID,
+          {
+            entityType,
+            entityId: 'shared-1',
+            updatedAtMillis: 2000,
+            payload: { householdId: HOUSEHOLD_ID },
+          },
+          { householdId: HOUSEHOLD_ID, userId: OWNER_ID },
+        );
+
+        expect(result).toEqual({
+          allowed: true,
+          householdId: HOUSEHOLD_ID,
+          isOwner: true,
+        });
+      },
+    );
 
     it('requires owner role for shared debt changes', async () => {
       findOne.mockReturnValue({
@@ -193,6 +225,21 @@ describe('HouseholdAuthzService', () => {
       );
 
       expect(result).toEqual({ allowed: false, reason: 'OWNER_ONLY' });
+    });
+  });
+
+  describe('getActiveHouseholdId', () => {
+    it('keeps the household for its owner when the family plan is inactive', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ userId: OWNER_ID, householdId: HOUSEHOLD_ID, role: MEMBER_ROLE.OWNER, status: MEMBER_STATUS.ACTIVE }) });
+      hasActiveFamilyPlan.mockResolvedValue(false);
+      await expect(service.getActiveHouseholdId(OWNER_ID)).resolves.toBe(HOUSEHOLD_ID);
+    });
+    it('hides the household from members when the family plan is inactive', async () => {
+      findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ userId: MEMBER_ID, householdId: HOUSEHOLD_ID, role: MEMBER_ROLE.MEMBER, status: MEMBER_STATUS.ACTIVE }) });
+      hasActiveFamilyPlan.mockResolvedValue(false);
+      await expect(service.getActiveHouseholdId(MEMBER_ID)).resolves.toBeNull();
+      hasActiveFamilyPlan.mockResolvedValue(true);
+      await expect(service.getActiveHouseholdId(MEMBER_ID)).resolves.toBe(HOUSEHOLD_ID);
     });
   });
 

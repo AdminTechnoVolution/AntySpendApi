@@ -40,6 +40,8 @@ export class HouseholdAuthzService {
   async getActiveHouseholdId(userId: string): Promise<string | null> {
     const membership = await this.getActiveMembership(userId);
     if (!membership) return null;
+    // A household without an active Family plan stays with its owner, who keeps syncing it.
+    if (membership.role === MEMBER_ROLE.OWNER) return membership.householdId;
     return (await this.hasActiveFamilyFeatures(membership.householdId))
       ? membership.householdId
       : null;
@@ -104,11 +106,15 @@ export class HouseholdAuthzService {
     if (!membership) {
       return { allowed: false, reason: 'NOT_HOUSEHOLD_MEMBER' };
     }
-    if (!(await this.hasActiveFamilyFeatures(householdId))) {
-      return { allowed: false, reason: 'FAMILY_PLAN_INACTIVE' };
-    }
 
     const isOwner = membership.role === MEMBER_ROLE.OWNER;
+    // Without an active Family plan the household is dormant: its data stays with the owner, who
+    // keeps syncing it under their own plan, while members lose access as if they had been removed
+    // (clients already retire their household cache on NOT_HOUSEHOLD_MEMBER).
+    if (!isOwner && !(await this.hasActiveFamilyFeatures(householdId))) {
+      return { allowed: false, reason: 'NOT_HOUSEHOLD_MEMBER' };
+    }
+
     const isDelete = change.deletedAtMillis !== undefined;
     const isNew = existing === null;
 
