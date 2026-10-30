@@ -108,6 +108,46 @@ describe('Mascot financial conversation v2', () => {
     expect((await service.processTurnV2(dto)).actions).toHaveLength(2);
   });
 
+  it.each(['CONFIRM', 'CANCEL'])('classifies a pending wallet %s without generating executable actions', async (decision) => {
+    model.chatCompletionJson.mockResolvedValue({ decision, reply: 'Entendido.' });
+    const answer = await service.processTurnV2({ ...dto, message: 'sí', financialContext: { pendingConfirmation: ['crear wallet: Viajes, USD, CASH'] } });
+    expect(answer).toMatchObject({ decision, actions: [], queries: [], conversationId: dto.conversationId, turnId: dto.turnId });
+    expect(model.chatCompletionJson).toHaveBeenCalledTimes(1);
+    const [prompt, , schemaName, schema] = model.chatCompletionJson.mock.calls[0];
+    expect(schemaName).toBe('anty_financial_confirmation_v2');
+    expect(schema.additionalProperties).toBe(false);
+    expect(schema.properties.actions).toBeUndefined();
+    expect(prompt).toContain('acepta exactamente');
+  });
+
+  it('replans a modified acceptance without permitting the old proposal to be confirmed', async () => {
+    const wallet = { ...action, entity: 'WALLET', fields: [{ name: 'name', value: 'Vacaciones' }] };
+    model.chatCompletionJson.mockResolvedValueOnce({ decision: 'REPLAN', reply: 'Cambiaré la propuesta.' }).mockResolvedValueOnce(response('ACTIONS', { actions: [wallet] }));
+    const answer = await service.processTurnV2({ ...dto, message: 'sí, pero llámala Vacaciones', financialContext: { pendingConfirmation: ['crear wallet: Viajes, USD, CASH'] } });
+    expect(answer).toMatchObject({ decision: 'ACTIONS', actions: [wallet] });
+    const schema = model.chatCompletionJson.mock.calls[1][3];
+    expect(schema.properties.decision.enum).toEqual(['ANSWER', 'QUERY', 'ACTIONS']);
+  });
+
+  it('rejects actions echoed by the confirmation classifier instead of silently executing or discarding them', async () => {
+    model.chatCompletionJson.mockResolvedValue({ decision: 'CONFIRM', reply: 'Sí.', actions: [action] });
+    await expect(service.processTurnV2({ ...dto, financialContext: { pendingConfirmation: ['crear wallet: Viajes'] } })).rejects.toThrow('Invalid financial assistant response');
+  });
+
+  it('does not classify completed writes as another pending confirmation', async () => {
+    model.chatCompletionJson.mockResolvedValue(response('ANSWER', { reply: 'Billetera guardada.' }));
+    const answer = await service.processTurnV2({ ...dto, message: 'sí', financialContext: { pendingConfirmation: ['crear wallet: Viajes'], executionResults: [{ status: 'SAVED' }] } });
+    expect(answer.decision).toBe('ANSWER');
+    expect(model.chatCompletionJson.mock.calls[0][2]).toBe('anty_financial_turn_v2');
+  });
+
+  it('does not classify final read synthesis as a confirmation', async () => {
+    model.chatCompletionJson.mockResolvedValue(response('ANSWER', { reply: '0 USD.' }));
+    await service.processTurnV2({ ...dto, financialContext: { pendingConfirmation: ['crear wallet: Viajes'], responseMode: 'SUMMARIZE_RESULTS' } });
+    expect(model.chatCompletionJson.mock.calls[0][0]).toContain('FASE FINAL');
+    expect(model.chatCompletionJson).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the device calendar and fresh results instead of historical monthly answers', async () => {
     model.chatCompletionJson.mockResolvedValue(
       response('QUERY', { queries: [query] }),
