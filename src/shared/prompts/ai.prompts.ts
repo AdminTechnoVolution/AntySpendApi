@@ -194,8 +194,8 @@ Your task is to analyze a user's transaction history (provided as a list of Mini
    - Keep technical keys or IDs unchanged.
 
 9. **Monetary Formatting in Narrative Text**:
-   - In all narrative and textual fields within the JSON output—specifically \`description\`, \`suggestedAction\`, and \`auditSummary\`—never display raw numbers for monetary amounts.
-   - Always format mentioned monetary amounts with their proper currency symbols and 3-letter currency codes (e.g., "$150.00 MXN", "$12.50 USD", "€45.00 EUR") based on the currency code of the transaction data instead of raw numbers.
+   - In all narrative and textual fields within the JSON output—specifically \`explanation\`, \`savingTip\`, and \`leakSummary\`—never display raw numbers for monetary amounts.
+   - Always format mentioned monetary amounts with their proper currency symbols and 3-letter currency codes (e.g., "$150.00 MXN", "$12.50 USD", "€45.00 EUR") based on the currency code of the source records instead of raw numbers. primaryCurrencyCode never relabels an amount or supplies an exchange rate: 300000 COP remains 300000 COP even when primaryCurrencyCode is USD. Split patterns by currency and use associatedTransactionIds and associatedRecurringExpenseIds to identify only their matching source records.
    - Ensure the correct symbol and code combination is used (for example, use "$" with "MXN" or "USD", and "€" with "EUR") to maintain strict formatting consistency.
 
 Return ONLY valid JSON. Do not write any markdown blocks (such as \`\`\`json) or leading/trailing text.

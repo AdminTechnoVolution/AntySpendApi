@@ -107,6 +107,28 @@ describe('Mascot financial conversation v2', () => {
     );
     expect((await service.processTurnV2(dto)).actions).toHaveLength(2);
   });
+  it('offers conversation ending only to clients that advertise support', async () => {
+    model.chatCompletionJson.mockResolvedValue(response('END_CONVERSATION', { reply: 'De nada.' }));
+    const answer = await service.processTurnV2({ ...dto, message: 'gracias', financialContext: { conversationControl: { supportsEndConversation: true } } });
+    expect(answer).toMatchObject({ decision: 'END_CONVERSATION', queries: [], actions: [] });
+    expect(model.chatCompletionJson.mock.calls[0][3].properties.decision.enum).toContain('END_CONVERSATION');
+    expect(model.chatCompletionJson.mock.calls[0][0]).toContain('Gracias, registra 10 de café');
+  });
+  it('rejects ending responses for older clients', async () => {
+    model.chatCompletionJson.mockResolvedValue(response('END_CONVERSATION'));
+    await expect(service.processTurnV2(dto)).rejects.toThrow('Invalid financial assistant response');
+    expect(model.chatCompletionJson.mock.calls[0][3].properties.decision.enum).not.toContain('END_CONVERSATION');
+  });
+  it('never accepts financial actions attached to a conversation ending', async () => {
+    model.chatCompletionJson.mockResolvedValue(response('END_CONVERSATION', { actions: [action] }));
+    await expect(service.processTurnV2({ ...dto, financialContext: { conversationControl: { supportsEndConversation: true } } })).rejects.toThrow('Invalid financial assistant response');
+  });
+  it('can end a pending proposal without emitting executable actions', async () => {
+    model.chatCompletionJson.mockResolvedValue({ decision: 'END_CONVERSATION', reply: 'Hasta luego.' });
+    const answer = await service.processTurnV2({ ...dto, message: 'eso es todo', financialContext: { conversationControl: { supportsEndConversation: true }, pendingConfirmation: ['crear wallet Viajes'] } });
+    expect(answer).toMatchObject({ decision: 'END_CONVERSATION', actions: [], queries: [] });
+    expect(model.chatCompletionJson.mock.calls[0][3].properties.decision.enum).toContain('END_CONVERSATION');
+  });
 
   it.each(['CONFIRM', 'CANCEL'])('classifies a pending wallet %s without generating executable actions', async (decision) => {
     model.chatCompletionJson.mockResolvedValue({ decision, reply: 'Entendido.' });

@@ -204,6 +204,10 @@ export const LEAK_ANALYSIS_JSON_SCHEMA = {
             type: 'array',
             items: { type: 'integer' },
           },
+          associatedRecurringExpenseIds: {
+            type: 'array',
+            items: { type: 'integer' },
+          },
         },
         required: [
           'title',
@@ -214,6 +218,7 @@ export const LEAK_ANALYSIS_JSON_SCHEMA = {
           'currencyCode',
           'severity',
           'associatedTransactionIds',
+          'associatedRecurringExpenseIds',
         ],
         additionalProperties: false,
       },

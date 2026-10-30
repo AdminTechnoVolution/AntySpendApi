@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -70,6 +70,7 @@ interface LeakAnalysisNetworkResult {
     currencyCode: string;
     severity: string;
     associatedTransactionIds: number[];
+    associatedRecurringExpenseIds?: number[];
   }>;
 }
 
@@ -127,6 +128,20 @@ function selectRelevantReceiptOcrLines(
     .slice(0, MAX_RECEIPT_OCR_LINES)
     .sort((a, b) => a.index - b.index)
     .map(({ line }) => line);
+}
+
+/** A preferred currency is never evidence of a conversion in an audit narrative. */
+function auditNarrativeCurrenciesMatch(result: LeakAnalysisNetworkResult, currencies: Set<string>): boolean {
+  const names = new Intl.DisplayNames(['en'], { type: 'currency' });
+  const text = [result.leakSummary, ...result.detectedLeaks.flatMap((p) => [p.title, p.explanation, p.savingTip])].filter((value) => typeof value === 'string').join(' ');
+  const isoAmounts = /\b([A-Z]{3})\s*[$€£¥]?\s*[0-9]|[0-9][0-9., \u00a0]*\s*([A-Z]{3})\b/g;
+  for (const match of text.matchAll(isoAmounts)) {
+    const code = (match[1] ?? match[2]).toUpperCase();
+    if (names.of(code) !== code && !currencies.has(code)) return false;
+  }
+  const hasDollarCurrency = [...currencies].some((code) => names.of(code)?.toLowerCase().includes('dollar'));
+  if (!hasDollarCurrency && /[0-9][0-9., \u00a0]*\s+(?:d[oó]lar(?:es)?|dollars?|dollari)\b/iu.test(text)) return false;
+  return true;
 }
 
 @Injectable()
@@ -463,6 +478,8 @@ export class AiService {
   ): Promise<{
     detectedLeaks: Array<Record<string, unknown>>;
     totalEstimatedMonthlyLeakImpact: number;
+    totalEstimatedMonthlyLeakImpactByCurrency: Record<string, number>;
+    currencyCode: string;
     auditSummary: string;
     leakScore: number;
   }> {
@@ -521,10 +538,11 @@ export class AiService {
             userId,
             deletedAtMillis: { $exists: false },
             occurredAtMillis: { $gte: startMillis, $lt: endMillis },
+            type: 'EXPENSE',
           })
           .lean(),
         this.recurringModel
-          .find({ userId, deletedAtMillis: { $exists: false }, isActive: true })
+          .find({ userId, deletedAtMillis: { $exists: false }, isActive: true, transactionType: { $ne: 'INCOME' } })
           .lean(),
         this.categoryModel
           .find({ userId, deletedAtMillis: { $exists: false } })
@@ -559,7 +577,7 @@ export class AiService {
         return {
           id: parseInt(r.id.slice(0, 8), 16) % 1000000,
           title: r.title,
-          amount: r.amountMinor / 100,
+          amount: this.originalMajor(r.amountMinor, r.currencyCode),
           currencyCode: r.currencyCode,
           categoryName: cat?.customName ?? cat?.key ?? 'Other',
           frequency: r.frequency,
@@ -577,6 +595,8 @@ export class AiService {
       recurringExpenses: minimalRecurring,
       primaryCurrencyCode,
       microExpenseThresholdPrimaryMinor: microThreshold,
+      microExpenseThresholdPrimaryMajor: this.originalMajor(microThreshold, primaryCurrencyCode),
+      monetaryInstructions: 'Each amount is already in major units of its own currencyCode. primaryCurrencyCode is only a preference, never a conversion rate or a label for other currencies. The primary-currency threshold applies only to that currency; no exchange rates were supplied. Split patterns by source currency and preserve source IDs.',
       userLanguage: dto.userLanguage ?? settings?.appLanguage ?? null,
     };
 
@@ -585,7 +605,7 @@ export class AiService {
       systemPrompt += `\n\n### LANGUAGE REQUIREMENT:\nThe user's preferred language is '${input.userLanguage}'. You MUST generate all user-facing text fields in this language.`;
     }
 
-    const network =
+    let network =
       await this.openRouter.chatCompletionJson<LeakAnalysisNetworkResult>(
         systemPrompt,
         JSON.stringify(input),
@@ -593,23 +613,42 @@ export class AiService {
         LEAK_ANALYSIS_JSON_SCHEMA,
       );
 
+    const sourceCurrencies = new Set([...minimalTransactions, ...minimalRecurring].map((item) => item.currencyCode));
+    const validCurrencies = (result: LeakAnalysisNetworkResult) => Array.isArray(result?.detectedLeaks) && auditNarrativeCurrenciesMatch(result, sourceCurrencies) && result.detectedLeaks.every((pattern) => {
+      if (!sourceCurrencies.has(pattern.currencyCode) || !Number.isFinite(pattern.aggregateAmount) || pattern.aggregateAmount < 0) return false;
+      const ids = pattern.associatedTransactionIds ?? [];
+      const recurringIds = pattern.associatedRecurringExpenseIds ?? [];
+      if (!Array.isArray(ids) || !Array.isArray(recurringIds)) return false;
+      return ids.every((id) => minimalTransactions.some((tx) => tx.id === id && tx.currencyCode === pattern.currencyCode)) &&
+        recurringIds.every((id) => minimalRecurring.some((recurring) => recurring.id === id && recurring.currencyCode === pattern.currencyCode));
+    });
+    if (!validCurrencies(network)) {
+      network = await this.openRouter.chatCompletionJson<LeakAnalysisNetworkResult>(
+        systemPrompt + '\nCORRECCIÓN OBLIGATORIA: la respuesta anterior cambió una moneda, mezcló divisas o usó referencias inexistentes. Repite el análisis desde los registros originales. Cada patrón debe conservar exactamente la moneda de todos sus registros; separa patrones de distintas divisas y no conviertas ni sumes divisas diferentes. primaryCurrencyCode no cambia el significado de los importes.',
+        JSON.stringify(input), 'leak_analysis_response', LEAK_ANALYSIS_JSON_SCHEMA,
+      );
+      if (!validCurrencies(network)) throw new BadGatewayException('Audit currency does not match source records');
+    }
+
     const detectedLeaks = (network.detectedLeaks ?? []).map((dto) => ({
       title: dto.title,
       description: dto.explanation,
       severity: dto.severity,
       categoryName: 'Gastos Hormiga',
       estimatedMonthlyImpact: dto.aggregateAmount,
+      currencyCode: dto.currencyCode,
       transactionIds: dto.associatedTransactionIds,
-      recurringExpenseIds: [] as number[],
+      recurringExpenseIds: dto.associatedRecurringExpenseIds ?? [],
       suggestedAction: dto.savingTip,
     }));
 
+    const impacts: Record<string, number> = {};
+    for (const pattern of detectedLeaks) impacts[pattern.currencyCode] = (impacts[pattern.currencyCode] ?? 0) + pattern.estimatedMonthlyImpact;
     return {
       detectedLeaks,
-      totalEstimatedMonthlyLeakImpact: detectedLeaks.reduce(
-        (sum, l) => sum + l.estimatedMonthlyImpact,
-        0,
-      ),
+      totalEstimatedMonthlyLeakImpact: impacts[primaryCurrencyCode] ?? 0,
+      totalEstimatedMonthlyLeakImpactByCurrency: impacts,
+      currencyCode: primaryCurrencyCode,
       auditSummary: network.leakSummary,
       leakScore: network.leakScore,
     };

@@ -275,7 +275,7 @@ Un ámbito accessible=true con totalCount 0 y totales vacíos significa 0 movimi
 Incluye el período consultado según query.period, currentDate, zoneId, startDate y endDateInclusive/asOf. No sustituyas este mes o esta semana por períodos del historial. Usa reference.name o traduce reference.localizationKey para categorías/wallets, nunca sus IDs internos.
 Responde con los resultados disponibles sin pedir otra vez filtros ya especificados; si falta evidencia identifica precisamente el dato que no pudo leerse, sin inventarlo. No afirmes ni ejecutes escrituras.`;
 
-function validateV2(value: unknown): asserts value is {
+function validateV2(value: unknown, supportsEndConversation = false): asserts value is {
   reply: string;
   decision: string;
   queries: unknown[];
@@ -291,7 +291,7 @@ function validateV2(value: unknown): asserts value is {
     typeof value.reply !== 'string' ||
     !value.reply.trim() ||
     value.reply.length > 8000 ||
-    !['ANSWER', 'QUERY', 'ACTIONS', 'CONFIRM', 'CANCEL'].includes(
+    !['ANSWER', 'QUERY', 'ACTIONS', 'CONFIRM', 'CANCEL', ...(supportsEndConversation ? ['END_CONVERSATION'] : [])].includes(
       String(value.decision),
     ) ||
     !Array.isArray(value.queries) ||
@@ -426,6 +426,12 @@ async function interpretFinancialTurn(
     throw new BadRequestException('Financial query context too large');
   const finalizing = dto.financialContext?.responseMode === 'SUMMARIZE_RESULTS';
   const hasCatalog = !!dto.financialContext?.dataCatalog;
+  const control = dto.financialContext?.conversationControl;
+  const supportsEndConversation = !!control && typeof control === 'object' &&
+    (control as Record<string, unknown>).supportsEndConversation === true;
+  const closingInstruction = supportsEndConversation
+    ? '\nEl cliente admite END_CONVERSATION. Si el usuario únicamente agradece o termina la conversación (por ejemplo «gracias», «eso es todo», «no necesito nada más»), devuelve END_CONVERSATION con una despedida breve y sin acciones ni consultas: dejará de escuchar hasta que el usuario toque la mascota. Si agradece pero añade una pregunta, operación o modifica/acepta explícitamente una propuesta, resuelve esa petición sin cerrar. «Gracias, registra 10 de café» no es un cierre; «sí, gracias» ante una propuesta es CONFIRM.'
+    : '';
   const pending = dto.financialContext?.pendingConfirmation;
   const executed = dto.financialContext?.executionResults;
   let replanningPending = false;
@@ -436,10 +442,13 @@ async function interpretFinancialTurn(
     const confirmation = await openRouter.chatCompletionJson<{
       decision: string;
       reply: string;
-    }>(CONFIRMATION_PROMPT, content, 'anty_financial_confirmation_v2', MASCOT_CONFIRMATION_SCHEMA);
+    }>(CONFIRMATION_PROMPT + closingInstruction, content, 'anty_financial_confirmation_v2', supportsEndConversation ? {
+      ...MASCOT_CONFIRMATION_SCHEMA,
+      properties: { ...MASCOT_CONFIRMATION_SCHEMA.properties, decision: { type: 'string', enum: ['CONFIRM', 'CANCEL', 'REPLAN', 'END_CONVERSATION'] } },
+    } : MASCOT_CONFIRMATION_SCHEMA);
     if (
       !confirmation || typeof confirmation !== 'object' ||
-      !['CONFIRM', 'CANCEL', 'REPLAN'].includes(confirmation.decision) ||
+      !['CONFIRM', 'CANCEL', 'REPLAN', ...(supportsEndConversation ? ['END_CONVERSATION'] : [])].includes(confirmation.decision) ||
       typeof confirmation.reply !== 'string' || !confirmation.reply.trim() || confirmation.reply.length > 2000 ||
       Object.keys(confirmation).some((key) => !['decision', 'reply'].includes(key))
     ) throw new BadGatewayException('Invalid financial assistant response');
@@ -463,10 +472,14 @@ async function interpretFinancialTurn(
         ...basePlanningSchema.properties,
         decision: { type: 'string', enum: ['ANSWER', 'QUERY', 'ACTIONS'] },
       },
+    } : supportsEndConversation ? {
+      ...basePlanningSchema,
+      properties: { ...basePlanningSchema.properties, decision: { type: 'string', enum: [...basePlanningSchema.properties.decision.enum, 'END_CONVERSATION'] } },
     } : basePlanningSchema;
     const output: unknown = await openRouter.chatCompletionJson(
       (final ? FINAL_ANSWER_PROMPT : V2_PROMPT) +
         phase +
+        (!final ? closingInstruction : '') +
         (replanningPending ? '\nLa respuesta a la propuesta pendiente fue clasificada REPLAN: resuelve el pedido actual, no confirmes ni canceles la propuesta anterior. Si cambia detalles, devuelve una propuesta nueva para que el dispositivo solicite otra confirmación.' : '') +
         (hasCatalog
           ? ''
@@ -477,7 +490,7 @@ async function interpretFinancialTurn(
         ? MASCOT_V2_ANSWER_SCHEMA
         : planningSchema,
     );
-    validateV2(output);
+    validateV2(output, !final && !replanningPending && supportsEndConversation);
     if (replanningPending && !final && ['CONFIRM', 'CANCEL'].includes(output.decision))
       throw new BadGatewayException('Invalid financial assistant response');
     if (final && output.decision !== 'ANSWER')
