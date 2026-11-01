@@ -43,9 +43,12 @@ export class OpenRouterClient {
         'OpenRouter API key not configured',
       );
     }
-    const model =
+    const defaultModel =
       this.config.get<string>('openRouter.model') ??
       'google/gemini-2.5-flash-lite';
+    const model = schemaName.startsWith('anty_financial_')
+      ? (this.config.get<string>('openRouter.assistantModel') ?? defaultModel)
+      : defaultModel;
 
     try {
       const response = await firstValueFrom(
@@ -53,7 +56,9 @@ export class OpenRouterClient {
           this.baseUrl,
           {
             model,
-            models: [...new Set([model, 'google/gemini-3.5-flash-lite'])],
+            models: [
+              ...new Set([model, defaultModel, 'google/gemini-3.5-flash-lite']),
+            ],
             temperature: 0,
             max_tokens: schemaName === 'anty_financial_turn_v2' ? 6000 : 1800,
             stream: false,
@@ -61,9 +66,7 @@ export class OpenRouterClient {
               require_parameters: true,
               data_collection: 'deny',
             },
-            ...(schemaName === 'anty_financial_turn_v2'
-              ? {}
-              : { plugins: [{ id: 'response-healing' }] }),
+            plugins: [{ id: 'response-healing' }],
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userContent },

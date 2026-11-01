@@ -246,17 +246,8 @@ describe('Mascot financial conversation v2', () => {
     response('ACTIONS'),
     response('ACTIONS', { actions: [{ ...action, targetLabel: null }] }),
     response('ACTIONS', { actions: [{ ...action, referenceLabels: {} }] }),
-    response('ACTIONS', {
-      actions: [{ ...action, fields: [{ name: 'amount', value: '}] } ,' }] }],
-    }),
-    response('ACTIONS', {
-      actions: [{ ...action, fields: [{ name: 'amount', value: '1,000' }] }],
-    }),
     response('ACTIONS', { actions: [{ ...action, operation: 'EXECUTE_SQL' }] }),
     response('ACTIONS', { actions: [{ ...action, scope: 'BOTH' }] }),
-    response('ACTIONS', {
-      actions: [{ ...action, fields: [{ name: 'amount', value: 10 }] }],
-    }),
     response('ACTIONS', {
       actions: [
         {
@@ -276,6 +267,18 @@ describe('Mascot financial conversation v2', () => {
     await expect(service.processTurnV2(dto)).rejects.toThrow(
       'Invalid financial assistant response',
     );
+  });
+
+  it.each([
+    ['1,000', { fields: [{ name: 'amount', value: '1000' }], missingFields: [] }],
+    [10, { fields: [{ name: 'amount', value: '10' }], missingFields: [] }],
+    ['}] } ,', { fields: [], missingFields: ['amount'] }],
+  ])('repairs the amount %p instead of failing the turn', async (value, expected) => {
+    model.chatCompletionJson.mockResolvedValue(
+      response('ACTIONS', { actions: [{ ...action, fields: [{ name: 'amount', value }] }] }),
+    );
+    const result = await service.processTurnV2(dto);
+    expect(result.actions[0]).toMatchObject(expected);
   });
 
   it('forces a grounded final answer after completed queries instead of requesting more filters', async () => {
@@ -437,5 +440,35 @@ describe('Mascot financial conversation v2', () => {
       }),
     ).rejects.toThrow('Financial query context too large');
     expect(model.chatCompletionJson).not.toHaveBeenCalled();
+  });
+  it('retries once with a correction when the plan breaks the contract', async () => {
+    model.chatCompletionJson
+      .mockResolvedValueOnce(response('QUERY'))
+      .mockResolvedValueOnce(response('ACTIONS', { actions: [action] }));
+    await expect(service.processTurnV2(dto as never)).resolves.toMatchObject({ decision: 'ACTIONS' });
+    expect(model.chatCompletionJson).toHaveBeenCalledTimes(2);
+    expect(model.chatCompletionJson.mock.calls[1][0]).toContain('CORRECCIÓN');
+  });
+
+  it('normalizes spoken amounts and field synonyms before validating', async () => {
+    model.chatCompletionJson.mockResolvedValueOnce(
+      response('ACTIONS', {
+        actions: [{ ...action, fields: [{ name: 'monto', value: '15 mil' }, { name: 'category', value: 'comida' }], missingFields: ['category'] }],
+      }),
+    );
+    const result = await service.processTurnV2(dto as never);
+    expect(result.actions[0]).toMatchObject({
+      fields: [{ name: 'amount', value: '15000' }, { name: 'categoryName', value: 'comida' }],
+      missingFields: [],
+    });
+  });
+
+  it('restricts action field names and teaches debts by creditor name', async () => {
+    model.chatCompletionJson.mockResolvedValueOnce(response('ANSWER'));
+    await service.processTurnV2(dto as never);
+    const [prompt, , , schema] = model.chatCompletionJson.mock.calls[0];
+    expect(schema.properties.actions.items.properties.fields.items.properties.name.enum).toContain('categoryName');
+    expect(prompt).toContain('«¿A quién le debo?»');
+    expect(prompt).toContain('validationErrors');
   });
 });

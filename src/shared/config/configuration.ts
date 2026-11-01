@@ -41,6 +41,9 @@ export default () => ({
   openRouter: {
     apiKey: process.env.OPENROUTER_API_KEY ?? '',
     model: process.env.OPENROUTER_MODEL ?? 'google/gemini-2.5-flash-lite',
+    // The conversational assistant plans multi-step reads and writes; a lite model misreads too many requests.
+    assistantModel:
+      process.env.OPENROUTER_ASSISTANT_MODEL ?? 'google/gemini-2.5-flash',
     visionModel:
       process.env.OPENROUTER_VISION_MODEL ?? 'google/gemini-2.5-flash',
     receiptModel:

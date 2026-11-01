@@ -1,0 +1,758 @@
+{
+  "now": "2026-11-01T10:00-05:00[America/Bogota]",
+  "zoneId": "America/Bogota",
+  "currentDate": "2026-11-01",
+  "currentMonth": "2026-11",
+  "calendarPeriods": {
+    "TODAY": {
+      "startDate": "2026-11-01",
+      "endDateExclusive": "2026-11-02",
+      "startInclusiveMillis": 1793509200000,
+      "endExclusiveMillis": 1793545200001,
+      "throughDate": "2026-11-01"
+    },
+    "THIS_WEEK": {
+      "startDate": "2026-10-26",
+      "endDateExclusive": "2026-11-02",
+      "startInclusiveMillis": 1792990800000,
+      "endExclusiveMillis": 1793545200001,
+      "throughDate": "2026-11-01"
+    },
+    "THIS_MONTH": {
+      "startDate": "2026-11-01",
+      "endDateExclusive": "2026-11-02",
+      "startInclusiveMillis": 1793509200000,
+      "endExclusiveMillis": 1793545200001,
+      "throughDate": "2026-11-01"
+    },
+    "LAST_MONTH": {
+      "startDate": "2026-10-01",
+      "endDateExclusive": "2026-11-01",
+      "startInclusiveMillis": 1790830800000,
+      "endExclusiveMillis": 1793509200000,
+      "throughDate": "2026-10-31"
+    }
+  },
+  "dateInstructions": "Interpret the requested operation, entity, period, scope and filters using AI and the current device date/zone. Historical replies are not current financial evidence. Choose the actual period requested, including comparisons and custom ranges. For financial figures, if queryResults is absent request QUERY. If matching queryResults are present with status COMPLETED, respond ANSWER from those results. A completed accessible query with totalCount 0 or empty totals means there are no records: state the numerical zero (0) for that period and currency, never request the same query again just because it is empty. Only request additional queries for genuinely missing filters or data. Identify the queried dates in the final reply.",
+  "responseInstructions": "Every response must include a non-empty reply string, even when decision is QUERY (for example: Voy a consultar los datos del periodo solicitado). QUERY must include at least one complete structured query with numeric offset and empty strings for unused filters. If data is missing, request it; do not invent a financial answer from history.",
+  "dataCatalog": {
+    "entities": [
+      {
+        "entity": "TRANSACTION",
+        "table": "transactions",
+        "description": "Gastos, ingresos y transferencias. occurredAtMillis/dateMillis es fecha real. amountMinor/currencyCode son monto/moneda originales. primaryTotals usa moneda principal. recordType EXPENSE/INCOME/TRANSFER. groupBy CATEGORY/WALLET/MERCHANT/DAY/TYPE calcula todos los registros, no una muestra.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "occurredAtMillis"
+      },
+      {
+        "entity": "WALLET",
+        "table": "wallets",
+        "description": "Wallets/cuentas: nombre, moneda, saldo inicial, balanceMinor actual y conversiones faltantes. No confundir ingreso menos gasto con saldo.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "CATEGORY",
+        "table": "categories",
+        "description": "Categorías de gastos/ingresos: id, key y customName. Resuelve nombres locales a IDs reales.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "BUDGET",
+        "table": "budgets",
+        "description": "Presupuestos, fechas, filtros de categoría/wallet y progress completo: límite, gasto, restante y ventana activa. No sumar límites superpuestos.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "DEBT",
+        "table": "debt_accounts",
+        "description": "Deudas por pagar (lo que el usuario DEBE). name es el acreedor: la persona o entidad a la que se le debe (p. ej. «Juan», «Bancolombia», «Tarjeta Visa»). Para «¿a quién le debo?», «¿cuánto debo?» o «¿cuánto le debo a X?» consulta DEBT period ALL y responde con name y remainingMinor de cada una. Abonar/pagar a X es PAY DEBT sobre la deuda cuyo name es X.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "DEBT_MOVEMENT",
+        "table": "debt_movements",
+        "description": "Historial de cargos/pagos/ajustes de deuda. parentId es debtId.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "day converted in device zone"
+      },
+      {
+        "entity": "LOAN",
+        "table": "personal_loans",
+        "description": "Préstamos por cobrar (lo que le DEBEN al usuario): person es quien debe, monto, pagado, remainingMinor, wallet y fecha. Para «¿quién me debe?» consulta LOAN ALL (y en hogar EXPENSE_SPLIT_LINE/SETTLEMENT).",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "dateMillis"
+      },
+      {
+        "entity": "LOAN_REPAYMENT",
+        "table": "personal_loan_repayments",
+        "description": "Abonos recibidos a préstamos. parentId es loanServerId.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "dateMillis"
+      },
+      {
+        "entity": "RECURRING",
+        "table": "recurring_expenses",
+        "description": "Movimientos recurrentes: importe, moneda, frecuencia, siguiente vencimiento y estado.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "nextDueAtMillis"
+      },
+      {
+        "entity": "SAVINGS",
+        "table": "savings_plans",
+        "description": "Metas de ahorro, objetivo, aportes previstos y netSavedMinor.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "SAVINGS_MOVEMENT",
+        "table": "savings_movements",
+        "description": "Aportes/retiros de ahorro; parentId es savingsPlanId.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "dateUtcMillis"
+      },
+      {
+        "entity": "INVESTMENT",
+        "table": "investments",
+        "description": "Inversiones, institución, tipo y netInvestedMinor.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "INVESTMENT_MOVEMENT",
+        "table": "investment_movements",
+        "description": "Aportes/retiros de inversiones; parentId es investmentId.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "dateUtcMillis"
+      },
+      {
+        "entity": "MERCHANT",
+        "table": "merchants",
+        "description": "Catálogo de comercios: id, nombre, nombre normalizado. Para gasto por comercio consulta TRANSACTION groupBy MERCHANT.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "CURRENCY",
+        "table": "currencies",
+        "description": "Monedas disponibles y sus unidades menores (minorUnits).",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "EXCHANGE_RATE",
+        "table": "exchange_rates",
+        "description": "Tipos de cambio guardados: fromCurrencyCode, toCurrencyCode, rate, source, rateTimestampMillis.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "rateTimestampMillis"
+      },
+      {
+        "entity": "CATEGORY_RULE",
+        "table": "category_rules",
+        "description": "Reglas manuales/aprendidas de clasificación: coincidencia, categoría, wallet, prioridad y estado.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "EXPENSE_SPLIT",
+        "table": "expense_splits",
+        "description": "Gastos compartidos/repartos: transactionId, pagador, método, total, moneda, estado y participantes.",
+        "scopes": [
+          "HOUSEHOLD"
+        ],
+        "dateField": "transaction occurredAtMillis"
+      },
+      {
+        "entity": "EXPENSE_SPLIT_LINE",
+        "table": "expense_split_lines",
+        "description": "Porciones de cada participante: owedAmountMinor y parentId/expenseSplitId.",
+        "scopes": [
+          "HOUSEHOLD"
+        ],
+        "dateField": "transaction occurredAtMillis"
+      },
+      {
+        "entity": "SETTLEMENT",
+        "table": "settlements",
+        "description": "Liquidaciones/compensaciones entre miembros: origen, destino, importe, moneda y fecha.",
+        "scopes": [
+          "HOUSEHOLD"
+        ],
+        "dateField": "settledAtMillis"
+      },
+      {
+        "entity": "BUDGET_QUOTA",
+        "table": "budget_member_quotas",
+        "description": "Cuotas por usuario de presupuestos compartidos; parentId es budgetId.",
+        "scopes": [
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "LOCAL_SPLIT",
+        "table": "transaction_local_splits",
+        "description": "Reparto local SELF/PARTNER/ROOMMATE por transacción y porcentaje. parentId es transactionId.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "transaction occurredAtMillis"
+      },
+      {
+        "entity": "TAG",
+        "table": "transaction_tags",
+        "description": "Etiquetas de movimientos: id, nombre y color.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "TAG_LINK",
+        "table": "transaction_tag_cross_ref",
+        "description": "Relaciones de etiqueta y transacción: transactionId, tagId y nombre. parentId es transactionId.",
+        "scopes": [
+          "PRIVATE",
+          "HOUSEHOLD"
+        ],
+        "dateField": "transaction occurredAtMillis"
+      },
+      {
+        "entity": "HOUSEHOLD",
+        "table": "household_snapshot",
+        "description": "Hogar actual: nombre, plan, rol y estado de acceso. Sin tokens de invitación.",
+        "scopes": [
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "HOUSEHOLD_MEMBER",
+        "table": "household_members",
+        "description": "Miembros visibles del hogar, roles y permisos de compartir. No concede acceso a datos privados de otros miembros.",
+        "scopes": [
+          "HOUSEHOLD"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      },
+      {
+        "entity": "SETTINGS",
+        "table": "financial_preferences",
+        "description": "Preferencias financieras: moneda principal/secundaria, wallet predeterminada, conversión y umbral de gastos hormiga. Sin PIN ni credenciales.",
+        "scopes": [
+          "PRIVATE"
+        ],
+        "dateField": "ALL unless creation date is explicitly requested"
+      }
+    ],
+    "readOnlyEntities": [
+      "MERCHANT",
+      "CURRENCY",
+      "EXCHANGE_RATE",
+      "CATEGORY_RULE",
+      "EXPENSE_SPLIT",
+      "EXPENSE_SPLIT_LINE",
+      "SETTLEMENT",
+      "BUDGET_QUOTA",
+      "LOCAL_SPLIT",
+      "TAG",
+      "TAG_LINK",
+      "HOUSEHOLD",
+      "HOUSEHOLD_MEMBER",
+      "SETTINGS"
+    ],
+    "actions": {
+      "TRANSACTION": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "type",
+          "amount",
+          "title",
+          "merchant",
+          "currencyCode",
+          "categoryId",
+          "categoryName",
+          "walletId",
+          "walletName",
+          "date",
+          "note",
+          "paymentMethod",
+          "transcript"
+        ],
+        "required": [
+          "amount"
+        ]
+      },
+      "WALLET": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "name",
+          "amount",
+          "currencyCode",
+          "type"
+        ],
+        "required": [
+          "name"
+        ]
+      },
+      "CATEGORY": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "name",
+          "type"
+        ],
+        "required": [
+          "name"
+        ]
+      },
+      "BUDGET": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "name",
+          "amount",
+          "currencyCode",
+          "categoryId",
+          "categoryName",
+          "walletId",
+          "walletName",
+          "periodType",
+          "startDate",
+          "endDate",
+          "isActive",
+          "alertThresholdPercent"
+        ],
+        "required": [
+          "name",
+          "amount"
+        ]
+      },
+      "DEBT": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE",
+          "PAY",
+          "VOID"
+        ],
+        "fields": [
+          "name",
+          "amount",
+          "currencyCode",
+          "annualInterestRateBps",
+          "minimumPayment",
+          "date",
+          "movementId"
+        ],
+        "required": [
+          "name",
+          "amount"
+        ]
+      },
+      "LOAN": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE",
+          "PAY"
+        ],
+        "fields": [
+          "person",
+          "name",
+          "amount",
+          "currencyCode",
+          "walletId",
+          "walletName",
+          "date",
+          "method"
+        ],
+        "required": [
+          "person",
+          "amount"
+        ]
+      },
+      "LOAN_REPAYMENT": {
+        "operations": [
+          "DELETE"
+        ],
+        "fields": [],
+        "required": []
+      },
+      "RECURRING": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE",
+          "PAY"
+        ],
+        "fields": [
+          "name",
+          "title",
+          "type",
+          "amount",
+          "currencyCode",
+          "categoryId",
+          "categoryName",
+          "walletId",
+          "walletName",
+          "frequency",
+          "dueDayOfMonth",
+          "nextDueDate",
+          "paymentMethod",
+          "isActive"
+        ],
+        "required": [
+          "name",
+          "amount"
+        ]
+      },
+      "SAVINGS": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "name",
+          "purpose",
+          "amount",
+          "currencyCode",
+          "plannedContribution",
+          "frequency",
+          "walletId",
+          "walletName",
+          "date",
+          "targetDate",
+          "note",
+          "isActive"
+        ],
+        "required": [
+          "name",
+          "amount"
+        ]
+      },
+      "SAVINGS_MOVEMENT": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "parentId",
+          "type",
+          "amount",
+          "currencyCode",
+          "walletId",
+          "walletName",
+          "date",
+          "reason",
+          "note"
+        ],
+        "required": [
+          "parentId",
+          "amount"
+        ]
+      },
+      "INVESTMENT": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "name",
+          "institution",
+          "type",
+          "currencyCode",
+          "walletId",
+          "walletName",
+          "note",
+          "isActive"
+        ],
+        "required": [
+          "name",
+          "institution"
+        ]
+      },
+      "INVESTMENT_MOVEMENT": {
+        "operations": [
+          "CREATE",
+          "UPDATE",
+          "DELETE"
+        ],
+        "fields": [
+          "parentId",
+          "type",
+          "amount",
+          "currencyCode",
+          "walletId",
+          "walletName",
+          "date",
+          "note"
+        ],
+        "required": [
+          "parentId",
+          "amount"
+        ]
+      }
+    },
+    "intents": [
+      {
+        "intent": "Registrar gasto",
+        "plan": "CREATE TRANSACTION type EXPENSE (se ejecuta sin confirmar; solo amount es obligatorio)",
+        "examples": [
+          "registra un gasto",
+          "gasté 20 en comida",
+          "pagué el uber 12",
+          "apunta 15 mil de almuerzo",
+          "anota 20 lucas de mercado",
+          "compré unos zapatos por 80",
+          "me cobraron 30 de internet",
+          "se me fueron 50 en la rumba",
+          "I spent 10 on coffee",
+          "j\u0027ai dépensé 12 euros"
+        ]
+      },
+      {
+        "intent": "Registrar ingreso",
+        "plan": "CREATE TRANSACTION type INCOME",
+        "examples": [
+          "me pagaron 2 millones",
+          "recibí 500 de un cliente",
+          "me llegó la quincena",
+          "vendí la bici en 300",
+          "got paid 1000"
+        ]
+      },
+      {
+        "intent": "Consultar gastos o ingresos",
+        "plan": "QUERY TRANSACTION con período y recordType; groupBy para desgloses",
+        "examples": [
+          "cuánto he gastado este mes",
+          "en qué se me va la plata",
+          "cuánto gasté en comida la semana pasada",
+          "mis últimos movimientos",
+          "cuánto me entró este mes",
+          "how much did I spend"
+        ]
+      },
+      {
+        "intent": "A quién le debo / cuánto debo",
+        "plan": "QUERY DEBT period ALL; responder name (acreedor) + remainingMinor",
+        "examples": [
+          "a quién le debo",
+          "cuánto debo",
+          "qué deudas tengo",
+          "cuánto le debo a Juan",
+          "cuánto me falta para pagar la tarjeta",
+          "who do I owe",
+          "à qui je dois"
+        ]
+      },
+      {
+        "intent": "Pagar o abonar una deuda",
+        "plan": "QUERY DEBT con search\u003dnombre del acreedor y luego PAY DEBT con amount",
+        "examples": [
+          "abona 100 a la deuda de mi hermano",
+          "le pagué 50 a Juan",
+          "pagué la cuota de la tarjeta",
+          "paid 200 to the bank loan"
+        ]
+      },
+      {
+        "intent": "Registrar una deuda nueva",
+        "plan": "CREATE DEBT name\u003dacreedor, amount\u003dsaldo",
+        "examples": [
+          "le debo 300 a Pedro",
+          "me prestaron 500 en el banco",
+          "saqué un crédito de 2 millones",
+          "I owe Ana 40"
+        ]
+      },
+      {
+        "intent": "Quién me debe / préstamos por cobrar",
+        "plan": "QUERY LOAN period ALL (y EXPENSE_SPLIT_LINE/SETTLEMENT si hay hogar)",
+        "examples": [
+          "quién me debe",
+          "quién me debe plata",
+          "cuánto me deben",
+          "who owes me"
+        ]
+      },
+      {
+        "intent": "Prestar dinero / cobrar préstamo",
+        "plan": "CREATE LOAN person+amount; abono recibido \u003d PAY LOAN",
+        "examples": [
+          "le presté 100 a Carlos",
+          "Carlos me devolvió 50",
+          "lent 20 to Mike"
+        ]
+      },
+      {
+        "intent": "Presupuestos",
+        "plan": "QUERY BUDGET ALL + TRANSACTION THIS_MONTH; CREATE/UPDATE/DELETE BUDGET",
+        "examples": [
+          "cómo voy con el presupuesto",
+          "puedo gastar 100 en ropa",
+          "ponme un presupuesto de 500 para comida",
+          "sube el presupuesto de mercado a 800"
+        ]
+      },
+      {
+        "intent": "Wallets y saldos",
+        "plan": "QUERY WALLET; CREATE/UPDATE/DELETE WALLET",
+        "examples": [
+          "cuánta plata tengo",
+          "saldo de mi cuenta",
+          "crea una billetera de efectivo",
+          "cuánto tengo en Nequi"
+        ]
+      },
+      {
+        "intent": "Editar o borrar un movimiento",
+        "plan": "QUERY TRANSACTION (search/período) y luego UPDATE/DELETE con el id devuelto",
+        "examples": [
+          "borra el gasto del café de ayer",
+          "quita lo último que anoté",
+          "cambia el almuerzo a 25",
+          "ese gasto era de transporte"
+        ]
+      },
+      {
+        "intent": "Pagos recurrentes",
+        "plan": "QUERY/CREATE/UPDATE/DELETE RECURRING; marcar pagado \u003d PAY RECURRING",
+        "examples": [
+          "qué pagos tengo pendientes",
+          "agrega Netflix cada mes por 40",
+          "ya pagué el arriendo"
+        ]
+      },
+      {
+        "intent": "Ahorros",
+        "plan": "SAVINGS / SAVINGS_MOVEMENT",
+        "examples": [
+          "cuánto llevo ahorrado",
+          "crea una meta de ahorro para viaje de 3 millones",
+          "mete 100 al ahorro del viaje",
+          "saca 50 del ahorro"
+        ]
+      },
+      {
+        "intent": "Inversiones",
+        "plan": "INVESTMENT / INVESTMENT_MOVEMENT",
+        "examples": [
+          "cuánto tengo invertido",
+          "agrega una inversión en CDT del banco",
+          "aporté 200 al fondo"
+        ]
+      },
+      {
+        "intent": "Categorías",
+        "plan": "QUERY/CREATE/UPDATE/DELETE CATEGORY",
+        "examples": [
+          "qué categorías tengo",
+          "crea la categoría mascotas",
+          "renombra la categoría X"
+        ]
+      },
+      {
+        "intent": "Hogar compartido",
+        "plan": "EXPENSE_SPLIT, EXPENSE_SPLIT_LINE, SETTLEMENT, HOUSEHOLD_MEMBER (solo lectura)",
+        "examples": [
+          "cuánto le debo a mi pareja",
+          "cómo van las cuentas de la casa",
+          "quién ha pagado más en el hogar"
+        ]
+      }
+    ],
+    "interpretation": "Interpreta el significado de la petición, en cualquier idioma, jerga o redacción incompleta; no esperes frases exactas. Elige la entidad y operación por su intención usando intents como ejemplos. Si falta un dato obligatorio pregúntalo de forma natural; si falta un dato opcional usa el predeterminado.",
+    "filters": [
+      "period",
+      "startDate",
+      "endDate",
+      "search",
+      "categoryId",
+      "walletId",
+      "parentId",
+      "recordType",
+      "tagId",
+      "groupBy",
+      "offset"
+    ],
+    "accountScope": "Only the active authenticated account and household data visible to that user. No cross-account reads.",
+    "aggregateSemantics": "totals, primaryTotals, groupedTotals and monetaryTotals include every matched record before paging. monetaryTotals is separated by currency and movement type; inspect missingFieldCounts/incompleteRecordCount. Do not add parent balances and child movements together, or overlap budget limits.",
+    "coverage": "All business tables mapped; sync_pending_deletes is an internal synchronization journal, not financial records."
+  },
+  "conversationControl": {
+    "supportsEndConversation": true
+  },
+  "activeFinanceScope": "PRIVATE",
+  "primaryCurrencyCode": "COP",
+  "minorUnitsByCurrency": {
+    "COP": 2,
+    "USD": 2
+  }
+}
